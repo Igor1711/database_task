@@ -1,10 +1,10 @@
 from django.conf.urls import url
+from api import views
 
-from . import views
-
-urlpatterns= [
-	url(r'^$forum', views.forum, name="forum"),
-	url(r'^$post', views.user, name="user"),
-	url(r'^$post', views.post, name="post"),
-	url(r'^$thread', views.thread, name="thread"),
+urlpatterns = [
+	url(r'^clear/', views.clear, name="clear"),
+	url(r'^status/', views.status, name="status"),
+	url(r'^forum/create/', views.forumcreate, name="forumcreate"),
+	url(r'^forum/details/',views.forumdetails, name="forumdetails"),
+	
 ]
