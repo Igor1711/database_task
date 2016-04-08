@@ -1,13 +1,45 @@
 from django.shortcuts import render
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.db import connection, transaction
 def clear(request):
 
 	if request.method == "POST":
-		return HttpResponse("200 OK")
+		database=connection.cursor()
+		forum.execute("DELETE from FORUM")
+		forum.execute("delete from POST")
+		forum.execute("delete from USER")
+		forum.execute("delete from THREAD")
+		return HttpResponse("OK")
 	else: 
-		return HttpResponse("FORBIDDEN")
+		
+		forum=connection.cursor()
+		forum.execute("SELECT name from FORUM")
+		output=forum.fetchall()
+		return HttpResponse(output)
 def status(request):
-	return HttpResponse("200 OK")
+	
+	if request.method == "GET":
+		numbers=connection.cursor()
+		numbers.execute("select COUNT(*) from FORUM")
+		user=numbers.fetchone()
+#		numbers.execute("select COUNT(*) from THREAD")
+		thread=numbers.fetchone()
+#		numbers.execute("select COUNT(*) from FORUM")
+		forum=numbers.fetchone()
+#		numbers.execute("select COUNT(*) from POST")
+		post=numbers.fetchone()
+		response1= Context ({
+			"code":0,
+			"response":{
+				"user":user,
+				"forum":forum,
+				"post":post,
+				"thread":thread,
+			}
+		})
+		return HttpResponse(response)
+	else:
+		 return HttpResponse("FORBIDDEN")
 
 def forumcreate(request):
 
