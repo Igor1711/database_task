@@ -1,6 +1,8 @@
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
 from django.db import connection, transaction
+from jsonview.decorators import json_view
+
 def clear(request):
 
 	if request.method == "POST":
@@ -16,6 +18,7 @@ def clear(request):
 		forum.execute("SELECT name from FORUM")
 		output=forum.fetchall()
 		return HttpResponse(output)
+@json_view
 def status(request):
 	
 	if request.method == "GET":
@@ -28,7 +31,7 @@ def status(request):
 		forum=numbers.fetchone()
 #		numbers.execute("select COUNT(*) from POST")
 		post=numbers.fetchone()
-		response1= Context ({
+		response1= {
 			"code":0,
 			"response":{
 				"user":user,
@@ -36,8 +39,8 @@ def status(request):
 				"post":post,
 				"thread":thread,
 			}
-		})
-		return HttpResponse(response)
+		}
+		return response1
 	else:
 		 return HttpResponse("FORBIDDEN")
 
