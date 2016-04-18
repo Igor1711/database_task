@@ -10,26 +10,32 @@ class MyJsonEncoder(JSONEncoder):
 		if isinstance(obj, QuerySet):
 			return loads(serialize('json', obj))
 		return JSONEncoder.default(self,obj)
+	
+def changedictuser(user):
+	user1=user
+	follow=connection.cursor()
+	follow.execute("select user1 from FOLLOW where user2=%s",[user1.get("email")])
+	user1["following"]=dumps(follow)
+	follow.execute("select user2 from FOLLOW where user1=%s",[user1.get("email")])
+	user1["followers"]=dumps(follow.fetchall())
+	follow.execute("select threadid from SUBSCRIPTION where user=%s",[user1.get("email")])
+	user1["subscription"]=dumps(follow.fetchall())
+	return user1
 
-def dictfetchall(cursor):
+def dictfetchall(cursor, change):
 	columns=[col[0] for col in cursor.description]
-	return [
-		dict(zip(columns, row))
-		for row in cursor.fetchall()
-	]
-def dictfetchalluser(cursor):
-	columns=[col[0] for col in cursor.description]
-	return [
-		user=dict(zip(columns,row))
-		follow=connection.cursor()
-		follow.execute("select user1 from FOLLOW where user2=%s",[user.get("email")])
-		user["following"]=dumps(follow)
-		follow.execute("select user2 from FOLLOW where user1=%s",[user.get("email")])
-		user["followers"]=dumps(follow.fetchall())
-		follow.execute("select threadid from SUBSCRIPTION where user=%s",[user.get("email")])
-		user["subscription"]=dumps(follow.fetchall())
-		for row in cursor.fetchall()
-	]
+	if change is None:
+		result= [
+			dict(zip(columns, row))
+			for row in cursor.fetchall()
+		]
+	if change=="user":
+		result=[
+			changedictuser(dict(zip(columns, row)))
+			for row in cursor.fetchall()
+		]
+	return result	
+
 
 def clear(request):
 
