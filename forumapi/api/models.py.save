@@ -1,0 +1,12 @@
+from __future__ import unicode_literals
+
+from django.db import models
+
+class Forum(models.Model):
+	name=models.CharFiled(max_length=64)
+	short_name=models.CharField(max_length=64)
+	user=models.CharField(max_length=64)
+
+class User(models.Model):
+	enail=models.
+# Create your models here.

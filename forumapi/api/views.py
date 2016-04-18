@@ -1,7 +1,23 @@
 from django.shortcuts import render
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.db import connection, transaction
-from jsonview.decorators import json_view
+from django.core.serializers import serialize
+from json import dumps, loads, JSONEncoder
+from django.db.models.query import QuerySet
+
+class MyJsonEncoder(JSONEncoder):
+	def encodesery(self, obj):
+		if isinstance(obj, QuerySet):
+			return loads(serialize('json', obj))
+		return JSONEncoder.default(self,obj)
+
+def dictfetchall(cursor):
+	columns=[col[0] for col in cursor.description]
+	return [
+		dict(zip(columns, row))
+		for row in cursor.fetchall()
+	]
+
 
 def clear(request):
 
@@ -11,25 +27,30 @@ def clear(request):
 		forum.execute("delete from POST")
 		forum.execute("delete from USER")
 		forum.execute("delete from THREAD")
-		return HttpResponse("OK")
+		response={
+			"code": 0,
+			"response":"OK"
+		}
+		return HttpResponse(dumps(response))
 	else: 
-		
-		forum=connection.cursor()
-		forum.execute("SELECT name from FORUM")
-		output=forum.fetchall()
-		return HttpResponse(output)
-@json_view
+		response={
+                        "code": 3,
+                        "response":"error POST method required"
+                }
+
+		return HttpResponse(dumps(response))
+
 def status(request):
 	
 	if request.method == "GET":
 		numbers=connection.cursor()
 		numbers.execute("select COUNT(*) from FORUM")
 		user=numbers.fetchone()
-#		numbers.execute("select COUNT(*) from THREAD")
+		numbers.execute("select COUNT(*) from THREAD")
 		thread=numbers.fetchone()
-#		numbers.execute("select COUNT(*) from FORUM")
+		numbers.execute("select COUNT(*) from FORUM")
 		forum=numbers.fetchone()
-#		numbers.execute("select COUNT(*) from POST")
+		numbers.execute("select COUNT(*) from POST")
 		post=numbers.fetchone()
 		response1= {
 			"code":0,
@@ -40,19 +61,61 @@ def status(request):
 				"thread":thread,
 			}
 		}
-		return response1
+		return HttpResponse(dumps(response1))
 	else:
-		 return HttpResponse("FORBIDDEN")
+		response1={
+			"code":3,
+			"response":"error GET method required"
+		}
+		return HttpResponse(dumps(response1))
 
 def forumcreate(request):
 
-	return HttpResponse("200 OK")
+	if request.method == "POST":
+		name=request.POST.get("name")
+		short_name=request.get("short_name")
+		user=request.get("user")
+		if name is None or short_name is None or user is None:
+			response={"code":2,"response":"Invalid request"}
+			return HttpResponse(dumps(response))
+		else:
+
+			new_forum=connection.cursor()
+			new_forum.execute("insert into FORUM(name,short_name,user) values("+name+","+short_name+","+user+")")
+			new_forum.execute("select ID as id,name,short_name,user from FORUM where name like %s and short_name like %s and user like %s",[name,short_name,user])
+			response=dictfetchall(new_forum)
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+	else:
+		response={"code":3,"response":"error POST method required"}
+		return HttpResponse(dumps(response))
 
 def forumdetails(request):
+	if request.method == "GET":
+		short_name=request.GET.get("forum")
+		related=request.GET.get("related")
+		if short_name is None:
+			response={"code":2,"response":"Invalid request, forum name required"}
+			return HttpResponse(dumps(response))
+		details=connection.cursor()
+		if related is None:
+			details.execute('select ID as id, name, short_name, user from FORUM where short_name like %s group by short_name',[short_name])
+		else:
+			details.execute("select ID as id, name, short_name, (select about,email,id,isAnonymous,name,username from USER where email like %s) as user from FORUM where short_name=%s",[short_name,"test_user@mail.ru"])
+		response=dictfetchall(details)
+		if dumps(response)==[] is None:
+			response1={"code":0,"response":"forum "+short_name+" does not exist"}
+		else:
+			response1={"code":0, "response":response}
+		return HttpResponse(dumps(response1))
+	else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
 
-        return HttpResponse("200 OK")
+       
 def forumlistposts(request):
 
+	
         return HttpResponse("200 OK")
 def forumlistthreads(request):
 
