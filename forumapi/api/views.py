@@ -17,7 +17,19 @@ def dictfetchall(cursor):
 		dict(zip(columns, row))
 		for row in cursor.fetchall()
 	]
-
+def dictfetchalluser(cursor):
+	columns=[col[0] for col in cursor.description]
+	return [
+		user=dict(zip(columns,row))
+		follow=connection.cursor()
+		follow.execute("select user1 from FOLLOW where user2=%s",[user.get("email")])
+		user["following"]=dumps(follow)
+		follow.execute("select user2 from FOLLOW where user1=%s",[user.get("email")])
+		user["followers"]=dumps(follow.fetchall())
+		follow.execute("select threadid from SUBSCRIPTION where user=%s",[user.get("email")])
+		user["subscription"]=dumps(follow.fetchall())
+		for row in cursor.fetchall()
+	]
 
 def clear(request):
 
