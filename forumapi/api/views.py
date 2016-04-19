@@ -250,10 +250,63 @@ def forumlistusers(request):
 		
 def postcreate(request):
 	
-        return HttpResponse("200 OK")
+	if request.method == "GET":
+		date=request.GET.get("date")
+		thread=request.GET.get("thread")
+		message=request.GET.get("message")
+		user=request.GET.get("user")
+		forum=request.GET.get("forum")
+		parent=request.GET.get("parent")
+		if parent is None:
+			parent="null"
+		isApproved=request.GET.get("isApproved")
+		if isApproved is None:
+			isApproved="false"
+		isHighlighted=request.GET.get("isHighlighted")
+		if isHighlighted is None:
+			isHighlighted="false"
+		isEdited=request.GET.get("isEdited")
+		if isEdited is None:
+			isEdited="false"
+		isSpam=request.GET.get("isSpam")
+		if isSpam is None:
+			isSpam="false"
+		isDeleted=request.GET.get("isDeleted")
+		if isDeleted is None:
+			isDeleted="false"
+		if date is None or thread is None or message is None or user is None or forum is None:
+			response={"code":2,"response":"Invalid request, forum, date, thread,message, user required"}
+			return HttpResponse(dumps(response))
+		else:
+			post=connection.cursor()
+			post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values("+date+","+thread+", %s,%s,%s, "+parent+", "+isApproved+", "+isHighlighted+", "+isEdited+", "+isSpam+", "+isDeleted+")", [message,user,forum])
+			post.execute("select date, forum, ID as id, isApproved, isDeleted, isEdited, isHightlighted, isSpam,message,thread,user from POST where message like %s and user like %s and forum like %s and thread="+thread, [message,user, forum])
+			response=dectfecthall(post, None)
+			response1={"code":0, "response":response}
+			return HttpResponse(dumps(response1))
+				
+	
+        else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
 def postdetails(request):
-
-        return HttpResponse("200 OK")
+	
+	if request.method == "GET":
+		post=request.GET.get("post")
+		related=request.GET.get("related")
+		if post is None:
+			response={"code":2,"response":"Invalid request, post_id required"}
+			return HttpResponse(dumps(response))
+		else:
+			post=connection.cursor()
+			post.execute(("select date, (select count(*) from VOTE where VOTE.user=THREAD.user and mark=-1 GROUP by VOTE.user) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE where VOTE.user=THREAD.user and mark=1 GROUP by VOTE.user) as likes, message, parent, thread, user from THREAD where ID="+post)
+			response=dictfetchall(post, related)
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+        else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
+		
 def postlist(request):
 
         return HttpResponse("200 OK")
