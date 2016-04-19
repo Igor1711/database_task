@@ -389,7 +389,7 @@ def postupdate(request):
 			update.execute("update POST set message=%s where ID="+post,[message])
 			update.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
 			response=dictfetchall(update,None)
-			response={"code":0,"response":response}
+			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
 		response={"code":3, "response":"error expected POST request"}
@@ -402,14 +402,14 @@ def postvote(request):
 		post=request.POST.get("post")
 		vote=request.POST.get("vote")
 		if (post is None) or (vote is None):
-			response={"code":2,"response":"Invalid request, post id required"}
+			response={"code":2,"response":"Invalid request, post id and mark required"}
 			return HttpResponse(dumps(response))
 		else:
 			vote=connection.cursor()
 			vote.execute("insert into VOTE1(object,mark) values("+post+","+vote+")")
 			vote.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
 			response=dictfetchall(vote,None)
-			response={"code":0,"response":response}
+			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
 		response={"code":3, "response":"error expected POST request"}
@@ -417,15 +417,49 @@ def postvote(request):
 
 def usercreate(request):
 	
-
-        return HttpResponse("200 OK")
+	if request.method=="POST":
+		isAnonymous=request.POST.get("isAnonymous")
+		username=request.POST.get("username")
+		about=request.POST.get("about")
+		name=request.POST.get("name")
+		email=request.POST.get("email")
+		if isAnonymous is None:
+			isAnonymous=" false"
+		if (username is None) or (about is None) or (name is None) or (email is None):
+			response={"code":2,"response":"Invalid request, name, username, email and about required"}
+			return HttpResponse(dumps(response))
+		else:
+			newuser=connection.cursor()
+			newuser.execute("insert into USER(username, name, about, email, isAnonymous) values(%s,%s,%s,%s,"+isAnonymous+")",[username,name,about,email])
+			newuser.execute("select about,email, ID as id, isAnonymous,name,username from USER where email=%s",[email])
+			response=dictfetchall(newuser,None)
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+			
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
 
 def userdetails(request):
-
-        return HttpResponse("200 OK")
-
+		if request.method=="GET":
+		email=request.GET.get("email")
+		if email is None:
+			response={"code":2,"response":"Invalid email required"}
+			return HttpResponse(dumps(response))
+		else:
+			user=connection.cursor()
+			user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email=%s", email)
+			response=dictfetchall(user,"user")
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+			
+        else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
+		
 def userfollow(request):
-
+	
+	
         return HttpResponse("200 OK")
 
 def userlistfollowers(request):
