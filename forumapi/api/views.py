@@ -21,6 +21,13 @@ def changedictuser(user):
 	follow.execute("select threadid from SUBSCRIPTION where user=%s",[user1.get("email")])
 	user1["subscription"]=dumps(follow.fetchall())
 	return user1
+	
+def relateddict(dict1, relate)
+	if change is None:
+		return dict1
+	else: 
+		return dict1
+	
 
 def dictfetchall(cursor, change):
 	columns=[col[0] for col in cursor.description]
@@ -32,6 +39,11 @@ def dictfetchall(cursor, change):
 	if change=="user":
 		result=[
 			changedictuser(dict(zip(columns, row)))
+			for row in cursor.fetchall()
+		]
+	else: 	
+		result=[
+			relateddict(dict(zip(columns, row)),change)
 			for row in cursor.fetchall()
 		]
 	return result	
@@ -101,7 +113,7 @@ def forumcreate(request):
 			new_forum=connection.cursor()
 			new_forum.execute("insert into FORUM(name,short_name,user) values("+name+","+short_name+","+user+")")
 			new_forum.execute("select ID as id,name,short_name,user from FORUM where name like %s and short_name like %s and user like %s",[name,short_name,user])
-			response=dictfetchall(new_forum)
+			response=dictfetchall(new_forum, None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	else:
@@ -116,11 +128,8 @@ def forumdetails(request):
 			response={"code":2,"response":"Invalid request, forum name required"}
 			return HttpResponse(dumps(response))
 		details=connection.cursor()
-		if related is None:
-			details.execute('select ID as id, name, short_name, user from FORUM where short_name like %s group by short_name',[short_name])
-		else:
-			details.execute("select ID as id, name, short_name, (select about,email,id,isAnonymous,name,username from USER where email like %s) as user from FORUM where short_name=%s",[short_name,"test_user@mail.ru"])
-		response=dictfetchall(details)
+		details.execute('select ID as id, name, short_name, user from FORUM where short_name like %s group by short_name',[short_name])
+		response=dictfetchall(details, None)
 		if dumps(response)==[] is None:
 			response1={"code":0,"response":"forum "+short_name+" does not exist"}
 		else:
@@ -132,15 +141,92 @@ def forumdetails(request):
 
        
 def forumlistposts(request):
-
+	if request.method == "GET":
+		forum=request.GET.get("forum")
+		since=request.GET.get("since")
+		order=request.GET.get("order")
+		related=request.GET.get("related")
+		limit=request.GET.get("limit")
+		if forum is None:
+			response={"code":2,"response":"Invalid request, forum name required"}
+			return HttpResponse(dumps(response))
+		else:
+			posts=connection.cursor()
+			if order is None:
+				order="desc"
+			limiting=""
+			if limit is not None:
+				limiting=" LIMIT "+limit
+			new_posts=""
+			if since is not None:
+				new_posts=" and date>="+since
+			posts.execute("select date, (select count(*) from VOTE where VOTE.user=THREAD.user and mark=-1 GROUP by VOTE.user) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE where VOTE.user=THREAD.user and mark=1 GROUP by VOTE.user) as likes, message, parent, thread, user from THREAD where forum=%s"+newposts+limitimg+"order by date "+order,[forum])
+			response=dictfetchall(posts, related)
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+		
 	
-        return HttpResponse("200 OK")
+        else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
+		
 def forumlistthreads(request):
-
-        return HttpResponse("200 OK")
+	if request.method == "GET":
+		forum=request.GET.get("forum")
+		since=request.GET.get("since")
+		order=request.GET.get("order")
+		related=request.GET.get("related")
+		limit=request.GET.get("limit")
+		if forum is None:
+			response={"code":2,"response":"Invalid request, forum name required"}
+			return HttpResponse(dumps(response))
+		else:
+			threads=connection.cursor()
+			if order is None:
+				order="desc"
+			limiting=""
+			if limit is not None:
+				limiting=" LIMIT "+limit
+			new_threads=""
+			if since is not None:
+				new_posts=" and date>="+since
+			posts.execute("select date, (select count(*) from VOTE where VOTE.user=THREAD.user and mark=-1 GROUP by VOTE.user) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.user=THREAD.user and mark=1 GROUP by VOTE.user) as likes, message, (select count(*) from POST where thread=THREAD.ID) as posts slug, title, user from THREAD where forum=%s"+newposts+limitimg+"order by date "+order,[forum])
+			response=dictfetchall(posts, related)
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+		
+	
+        else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
+		
 def forumlistusers(request):
-
-        return HttpResponse("200 OK")
+	if request.method == "GET":
+		forum=request.GET.get("forum")
+		since=request.GET.get("since_id")
+		order=request.GET.get("order")
+		limit=request.GET.get("limit")
+		if forum is None:
+			response={"code":2,"response":"Invalid request, forum name required"}
+			return HttpResponse(dumps(response))
+		else:
+			users=connection.cursor()
+			limiting=""
+			if limit is not None:
+				limiting=" LIMIT "+limit
+			num=""
+			if limit is not None:
+				num=" LIMIT "+limit
+			if order is None:
+				order="desc"
+			users.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, POST where POST.forum=%s and POST.user=USER.email"+num+" order by name "+order, [forum])
+			response=dictfetchall(users,"user")
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+        else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
+		
 def postcreate(request):
 
         return HttpResponse("200 OK")
