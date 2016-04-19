@@ -448,7 +448,7 @@ def userdetails(request):
 			return HttpResponse(dumps(response))
 		else:
 			user=connection.cursor()
-			user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email=%s", email)
+			user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [email])
 			response=dictfetchall(user,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -459,28 +459,153 @@ def userdetails(request):
 		
 def userfollow(request):
 	
-	
-        return HttpResponse("200 OK")
+	if request.method=="POST"
+		follower=request.POST.get("follower")
+		followee=request.POST.get("followee")
+		if (follower is None or followee is None):
+			response={"code":2,"response":"Invalid request, follower and followee required"}
+			return HttpResponse(dumps(response))
+		else:
+			follow=connection.cursor()
+			follow.execute("insert FOLLOWING(follower,followee) values(%s,%s)",[follower,followee])
+			follow.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [follower])
+			response=dictfetchall(follow,"user")
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+			
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
 
 def userlistfollowers(request):
+	
+	if request.methos=="GET":
+		user=request.GET.get("email")
+		if user is None:
+			response={"code":2,"response":"Invalid request, user required"}
+			return HttpResponse(dumps(response))
+		else:
+			order=request.GET.get("order")
+			if order is None:
+				order="desc"
+			limit=request.GET.get("limit")
+			limiting=""
+			if limit is not None:
+				limiting=" LIMIT "+limit
+			since=request.GET.get("since_id")
+			news=""
+			if since is not None:
+				news="and ID>="+since
+			followers=connection.cursor()
+			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email in (select follower from FOLLOWING where followee like %s)"+limiting+" order by name "+order, [user])
+			response=dictfetchall(followers,"user")
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
 
-        return HttpResponse("200 OK")
+        else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
 
 def userlistfollowing(request):
 
-        return HttpResponse("200 OK")
+        if request.methos=="GET":
+		user=request.GET.get("email")
+		if user is None:
+			response={"code":2,"response":"Invalid request, user required"}
+			return HttpResponse(dumps(response))
+		else:
+			order=request.GET.get("order")
+			if order is None:
+				order="desc"
+			limit=request.GET.get("limit")
+			limiting=""
+			if limit is not None:
+				limiting=" LIMIT "+limit
+			since=request.GET.get("since_id")
+			news=""
+			if since is not None:
+				news="and ID>="+since
+			followers=connection.cursor()
+			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email in (select followee from FOLLOWING where follower like %s)"+limiting+" order by name "+order, [user])
+			response=dictfetchall(followers,"user")
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+
+        else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
+
 
 def userlistposts(request):
 
-        return HttpResponse("200 OK")
+        if request.methos=="GET":
+		user=request.GET.get("email")
+		if user is None:
+			response={"code":2,"response":"Invalid request, user required"}
+			return HttpResponse(dumps(response))
+		else:
+			order=request.GET.get("order")
+			if order is None:
+				order="desc"
+			limit=request.GET.get("limit")
+			limiting=""
+			if limit is not None:
+				limiting=" LIMIT "+limit
+			since=request.GET.get("since")
+			news=""
+			if since is not None:
+				news="and date>="+since
+			posts=connection.cursor()
+			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where user like%s"+news+limiting+"order by date "+order,[user])
+			response=dictfetchall(posts,None)
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
+
 
 def userunfollow(request):
 
-        return HttpResponse("200 OK")
+        	if request.method=="POST"
+		follower=request.POST.get("follower")
+		followee=request.POST.get("followee")
+		if (follower is None or followee is None):
+			response={"code":2,"response":"Invalid request, follower and followee required"}
+			return HttpResponse(dumps(response))
+		else:
+			follow=connection.cursor()
+			follow.execute("delete from FOLLOWING where follower like %s and followee like %s",[follower,followee])
+			follow.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [follower])
+			response=dictfetchall(follow,"user")
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+			
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
 
 def userupdateprofile(request):
-
-        return HttpResponse("200 OK")
+	
+	if request.method=="POST"
+		user=request.POST.get("user")
+		about=request.POST.get("about")
+		name=request.POST.get("name")
+		if (user is None or about is none or name is None):
+			response={"code":2,"response":"Invalid request, user email about and name required"}
+			return HttpResponse(dumps(response))
+		else:
+			update=connection.cursor()
+			update.execute("update USER set name=%s about=%s where email like %s", [name, about, email])
+			update.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [email])
+			response=dictfetchall(update,"user")
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+	
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
 
 def threadclose(request):
 
