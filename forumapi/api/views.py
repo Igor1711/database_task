@@ -45,7 +45,7 @@ def relateddict(dict1, relate)
 				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email=%s", [dict1[user]])
 				dict1[user]=relation(dictfetchall(relation,"user"))
 			if thread == true:
-				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select count(*) from POST where thread=THREAD.ID) as posts slug, title, user from THREAD where ID="+dict1[thread])
+				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+dict1[thread])
 				dict1[thread]=relation(dictfetchall(relation,None))
 		return dict1
 	
@@ -300,7 +300,7 @@ def postdetails(request):
 			return HttpResponse(dumps(response))
 		else:
 			post=connection.cursor()
-			post.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from THREAD where ID="+post)
+			post.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
 			response=dictfetchall(post, related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -354,7 +354,7 @@ def postremove(request):
 		else:
 			delete=connection.cursor()
 			delete.execute("update POST set isDeleted=true where ID="+post)
-			response={"code":0,"response":{"post", post"}}
+			response={"code":0,"response":{"post", post}}
 			return HttpResponse(dumps(response))
         else: 
 		response={"code":3, "response":"error expected POST request"}
@@ -370,7 +370,7 @@ def postrestore(request):
 		else:
 			delete=connection.cursor()
 			delete.execute("update POST set isDeleted=false where ID="+post)
-			response={"code":0,"response":{"post", post"}}
+			response={"code":0,"response":{"post", post}}
 			return HttpResponse(dumps(response))
         else: 
 		response={"code":3, "response":"error expected POST request"}
@@ -609,15 +609,67 @@ def userupdateprofile(request):
 
 def threadclose(request):
 
-        return HttpResponse("200 OK")
+        if request.method=="POST":
+		thread=request.POST.get("thread")
+		if thread is None:
+			response={"code":2,"response":"Invalid request, thread id required"}
+			return HttpResponse(dumps(response))
+		else:
+			close=connection.cursor()
+			close.execute("update THREAD set isClosed=true where ID="+thread)
+			response={"code":0,"response":{"thread", thread"}}
+			return HttpResponse(dumps(response))
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
 
 def threadcreate(request):
+	
+	if request.method=="POST"
+		isDeleted=request.POST.get("isDeleted")
+		if isDeleted is None:
+			isDeleted="false"
+		forum=request.POST.get("forum")
+		title=request.POST.get("title")
+		isClosed=request.POST.get("isClosed")
+		user=request.POST.get("user")
+		date=request.POST.get("date")
+		message=request.POST.get("message")
+		slug=request.POST.get("slug")
+		if (forum is None or title is None isClosed is None or user is None or date is None or message is None or slug is None):
+			response={"code":2,"response":"Invalid request, fill all fields required"}
+			return HttpResponse(dumps(response))
+		else:
+			newthread=connection.fetchall()
+			newthread.execute("insert into THREAD(forum, title, isClosed, user, date, message,slug, isDeleted) values(%s,%s,"+isClosed+",%s,"+date+",%s,%s,"+isDeleted+")",[forum,title,user,message,slug])
+			newthread.execute("select date,forum,ID as id,isClosed, isDeleted,message,slug,title,user from THREAD where forum like %s and title like %s and user like %s and message like %s",[forum,title,user,message])
+			response=dictfetchall(newthread,"user")
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+	
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
 
-        return HttpResponse("200 OK")
-
+        
 def threaddetails(request):
+	
+	if request.method=="GET":
+		related=request.GET.get("related")
+		thread=request.GET.get("thread")
+		if thread is None:
+			response={"code":2,"response":"Invalid request, thread id required"}
+			return HttpResponse(dumps(response))
+		else:
+			detail=connection.cursor()
+			detail.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
+			response=dictfetchall(detail,related)
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
 
-        return HttpResponse("200 OK")
+        else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
 
 def threadlist(request):
 
@@ -626,27 +678,129 @@ def threadlist(request):
 def threadlistposts(request):
 
         return HttpResponse("200 OK")
+        
 def threadopen(request):
 
-        return HttpResponse("200 OK")
+        if request.method=="POST":
+		thread=request.POST.get("thread")
+		if thread is None:
+			response={"code":2,"response":"Invalid request, thread id required"}
+			return HttpResponse(dumps(response))
+		else:
+			open1=connection.cursor()
+			open1.execute("update THREAD set isClosed=true where ID="+thread)
+			response={"code":0,"response":{"thread", thread"}}
+			return HttpResponse(dumps(response))
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
+		
 def threadremove(request):
 
-        return HttpResponse("200 OK")
+        if request.method=="POST":
+		thread=request.POST.get("thread")
+		if thread is None:
+			response={"code":2,"response":"Invalid request, thread id required"}
+			return HttpResponse(dumps(response))
+		else:
+			close=connection.cursor()
+			close.execute("update THREAD set isDeleted=true where ID="+thread)
+			close.execute("update POST set isDeleted=true where thread="+thread)
+			response={"code":0,"response":{"thread", thread}}
+			return HttpResponse(dumps(response))
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
+		
 def threadrestore(request):
 
-        return HttpResponse("200 OK")
+        if request.method=="POST":
+		thread=request.POST.get("thread")
+		if thread is None:
+			response={"code":2,"response":"Invalid request, thread id required"}
+			return HttpResponse(dumps(response))
+		else:
+			close=connection.cursor()
+			close.execute("update THREAD set isDeleted=false where ID="+thread)
+			response={"code":0,"response":{"thread", thread}}
+			return HttpResponse(dumps(response))
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
+		
 def threadsubscribe(request):
+	
+	if request.method="POST":
+		thread=request.POST.get("thread")
+		user=request.POST.get("user")
+		if (user is None or thread is None):
+			response={"code":2,"response":"Invalid request, thread id and username required"}
+			return HttpResponse(dumps(response))
+		else:
+			sudscribe=connection.cursor()
+			subscribe.execute("insert into SUBSCRIPTION(threadid,user) values("+thread+",%s)",[user])
+			response={"code":0,"response":{"thread", thread, "user": user}}
+			return HttpResponse(dumps(response))
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
 
-        return HttpResponse("200 OK")
+        
 def threadunsubscribe(request):
 
-        return HttpResponse("200 OK")
+        	if request.method="POST":
+		thread=request.POST.get("thread")
+		user=request.POST.get("user")
+		if (user is None or thread is None):
+			response={"code":2,"response":"Invalid request, thread id and username required"}
+			return HttpResponse(dumps(response))
+		else:
+			sudscribe=connection.cursor()
+			subscribe.execute("delete from SUBSCRIPTION where thread="+thread+" and user like %s)",[user])
+			response={"code":0,"response":{"thread", thread, "user": user}}
+			return HttpResponse(dumps(response))
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
+        
 def threadupdate(request):
 
-        return HttpResponse("200 OK")
+        if request.method=="POST"
+		thread=request.POST.get("thread")
+		message=request.POST.get("message")
+		slug=request.POST.get("slug")
+		if (thread is None or message is none or slug is None):
+			response={"code":2,"response":"Invalid request, user email about and name required"}
+			return HttpResponse(dumps(response))
+		else:
+			update=connection.cursor()
+			update.execute("update THREAD set slug=%s message=%s where ID="+thread, [slug, message])
+			update.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
+			response=dictfetchall(update,None)
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+	
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
 def threadvote(request):
 
-        return HttpResponse("200 OK")
+         if request.method=="POST":
+		thread=request.POST.get("thread")
+		vote=request.POST.get("vote")
+		if (post is None) or (vote is None):
+			response={"code":2,"response":"Invalid request, post id and mark required"}
+			return HttpResponse(dumps(response))
+		else:
+			vote=connection.cursor()
+			vote.execute("insert into VOTE(object,mark) values("+thread+","+vote+")")
+			vote.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
+			response=dictfetchall(vote,None)
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+        else: 
+		response={"code":3, "response":"error expected POST request"}
+		return HttpResponse(dumps(response))
 
 
 
