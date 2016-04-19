@@ -673,11 +673,73 @@ def threaddetails(request):
 
 def threadlist(request):
 
-        return HttpResponse("200 OK")
+	if request.method=="GET":
+		forum=request.GET.get("forum")
+		since=request.GET.get("since_id")
+		order=request.GET.get("order")
+		limit=request.GET.get("limit")
+		user=request.GET.get("user")
+		new_posts=""
+		if since is not None:
+			new_posts=" and date>="+date
+		if order is None:
+			order="desc"
+		limiting=""
+		if limit is not None:
+			limitimg=" LIMIT "+limit
+		if forum is not None:
+			threads=connectiom.cursor()
+			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where forum like %s"+new_posts+limiting+" order by date "+order,[forum])
+			response=dictfetchall(threads,None)
+			response1={"code":0,"response":response}
+			return HttpResponcse(dump(response1))
+		else:
+			if user is not None:
+				threads=connectiom.cursor()
+				threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where user like %s"+new_posts+limiting+" order by date "+order,[user])
+				response=dictfetchall(threads,None)
+				response1={"code":0,"response":response}
+				return HttpResponcse(dump(response1))
+			else:
+				response={"code":2,"response":"Invalid request, thread_id or forum name required"}
+				return HttpResponse(dumps(response))
+
+        else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
 
 def threadlistposts(request):
 
-        return HttpResponse("200 OK")
+        if request.method=="GET":
+		
+		since=request.GET.get("since_id")
+		order=request.GET.get("order")
+		limit=request.GET.get("limit")
+		thread=request.GET.get("thread")
+		sort=request.GET.get("sort")
+		new_posts=""
+		if since is not None:
+			new_posts=" and date>="+date
+		if order is None:
+			order="desc"
+		limiting=""
+		if limit is not None:
+			limitimg=" LIMIT "+limit
+		if sort is None:
+			sort="flat"
+		if thread is None:
+			response={"code":2,"response":"Invalid request, thread_id required"}
+			return HttpResponse(dumps(response))
+		else:
+			posts=connection.cursor()
+			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+thread+news_posts+limiting+"order by date "+order)
+			response=dictfetchall(posts,None)
+			response1={"code":0,"response":response}
+			return HttpResponse(dumps(response1))
+			
+	else: 
+		response={"code":3, "response":"error expected GET request"}
+		return HttpResponse(dumps(response))
         
 def threadopen(request):
 
