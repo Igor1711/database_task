@@ -26,6 +26,27 @@ def relateddict(dict1, relate)
 	if change is None:
 		return dict1
 	else: 
+		forum=false
+		user=false
+		thread=flase
+		for element in relate:
+			if element=="forum":
+				forum=true
+			if element=="user":
+				user=true
+			if element=="thread":
+				thread=true
+		if forum==true or user==true or thread=true:
+			realtion=connection.cursor()
+			if forum == true:
+				relation.execute("select ID as id, name,short_name,user from FORUM where short_name=%s",[dict1[forum]])
+				dict1[forum]=relation(dictfetchall(relation,None))
+			if user == true:
+				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email=%s", [dict1[user]])
+				dict1[user]=relation(dictfetchall(relation,"user"))
+			if thread == true:
+				relation.execute("select date, (select count(*) from VOTE where VOTE.user=THREAD.user and mark=-1 GROUP by VOTE.user) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.user=THREAD.user and mark=1 GROUP by VOTE.user) as likes, message, (select count(*) from POST where thread=THREAD.ID) as posts slug, title, user from THREAD where ID="+dict1[thread])
+				dict1[thread]=relation(dictfetchall(relation,None))
 		return dict1
 	
 
@@ -228,7 +249,7 @@ def forumlistusers(request):
 		return HttpResponse(dumps(response))
 		
 def postcreate(request):
-
+	
         return HttpResponse("200 OK")
 def postdetails(request):
 
