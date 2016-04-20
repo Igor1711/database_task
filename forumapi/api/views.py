@@ -40,13 +40,13 @@ def relateddict(dict1, relate)
 			realtion=connection.cursor()
 			if forum == true:
 				relation.execute("select ID as id, name,short_name,user from FORUM where short_name=%s",[dict1[forum]])
-				dict1[forum]=relation(dictfetchall(relation,None))
+				dict1[forum]=relation(dictfetchone(relation,None))
 			if user == true:
 				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email=%s", [dict1[user]])
-				dict1[user]=relation(dictfetchall(relation,"user"))
+				dict1[user]=relation(dictfetchone(relation,"user"))
 			if thread == true:
 				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+dict1[thread])
-				dict1[thread]=relation(dictfetchall(relation,None))
+				dict1[thread]=relation(dictfetchone(relation,None))
 		return dict1
 	
 
@@ -68,6 +68,13 @@ def dictfetchall(cursor, change):
 			for row in cursor.fetchall()
 		]
 	return result	
+def dictfetchone(cursor, relate):
+	columns=[col[0] for col in cursor.description]
+	row=cursor.fetchone()
+	if relate="user":
+		return changedictuser(dict(zip(columns, row)))
+	else:
+		return (dict(zip(columns,row))
 
 
 def clear(request):
@@ -95,22 +102,11 @@ def status(request):
 	
 	if request.method == "GET":
 		numbers=connection.cursor()
-		numbers.execute("select COUNT(*) from FORUM")
-		user=numbers.fetchone()
-		numbers.execute("select COUNT(*) from THREAD")
-		thread=numbers.fetchone()
-		numbers.execute("select COUNT(*) from FORUM")
-		forum=numbers.fetchone()
-		numbers.execute("select COUNT(*) from POST")
-		post=numbers.fetchone()
+		numbers.execute("select ((select count(*) from USER) as user, (select COUNT(*) from THREAD) as thread, (select COUNT(*) from FORUM) as forum, (select COUNT(*) from POST) as post)")
+		responce=dictfetchone(numbers,None)
 		response1= {
 			"code":0,
-			"response":{
-				"user":user,
-				"forum":forum,
-				"post":post,
-				"thread":thread,
-			}
+			"response":response
 		}
 		return HttpResponse(dumps(response1))
 	else:
@@ -281,7 +277,7 @@ def postcreate(request):
 			post=connection.cursor()
 			post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values("+date+","+thread+", %s,%s,%s, "+parent+", "+isApproved+", "+isHighlighted+", "+isEdited+", "+isSpam+", "+isDeleted+")", [message,user,forum])
 			post.execute("select date, forum, ID as id, isApproved, isDeleted, isEdited, isHightlighted, isSpam,message,thread,user from POST where message like %s and user like %s and forum like %s and thread="+thread, [message,user, forum])
-			response=dectfecthall(post, None)
+			response=dectfecthone(post, None)
 			response1={"code":0, "response":response}
 			return HttpResponse(dumps(response1))
 				
@@ -386,7 +382,7 @@ def postupdate(request):
 			return HttpResponse(dumps(response))
 		else:
 			update=connection.cursor()
-			update.execute("update POST set message=%s where ID="+post,[message])
+			update.execute("update POST set message=%s, isEdited=true where ID="+post,[message])
 			update.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
 			response=dictfetchall(update,None)
 			response1={"code":0,"response":response}
@@ -408,7 +404,7 @@ def postvote(request):
 			vote=connection.cursor()
 			vote.execute("insert into VOTE1(object,mark) values("+post+","+vote+")")
 			vote.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
-			response=dictfetchall(vote,None)
+			response=dictfetchone(vote,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
@@ -432,7 +428,7 @@ def usercreate(request):
 			newuser=connection.cursor()
 			newuser.execute("insert into USER(username, name, about, email, isAnonymous) values(%s,%s,%s,%s,"+isAnonymous+")",[username,name,about,email])
 			newuser.execute("select about,email, ID as id, isAnonymous,name,username from USER where email=%s",[email])
-			response=dictfetchall(newuser,None)
+			response=dictfetchone(newuser,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -449,7 +445,7 @@ def userdetails(request):
 		else:
 			user=connection.cursor()
 			user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [email])
-			response=dictfetchall(user,"user")
+			response=dictfetchone(user,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -469,7 +465,7 @@ def userfollow(request):
 			follow=connection.cursor()
 			follow.execute("insert FOLLOWING(follower,followee) values(%s,%s)",[follower,followee])
 			follow.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [follower])
-			response=dictfetchall(follow,"user")
+			response=dictfetchone(follow,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -578,7 +574,7 @@ def userunfollow(request):
 			follow=connection.cursor()
 			follow.execute("delete from FOLLOWING where follower like %s and followee like %s",[follower,followee])
 			follow.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [follower])
-			response=dictfetchall(follow,"user")
+			response=dictfetchone(follow,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -599,7 +595,7 @@ def userupdateprofile(request):
 			update=connection.cursor()
 			update.execute("update USER set name=%s about=%s where email like %s", [name, about, email])
 			update.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [email])
-			response=dictfetchall(update,"user")
+			response=dictfetchone(update,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	
@@ -838,7 +834,7 @@ def threadupdate(request):
 			update=connection.cursor()
 			update.execute("update THREAD set slug=%s message=%s where ID="+thread, [slug, message])
 			update.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
-			response=dictfetchall(update,None)
+			response=dictfetchone(update,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	
@@ -857,7 +853,7 @@ def threadvote(request):
 			vote=connection.cursor()
 			vote.execute("insert into VOTE(object,mark) values("+thread+","+vote+")")
 			vote.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
-			response=dictfetchall(vote,None)
+			response=dictfetchone(vote,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
