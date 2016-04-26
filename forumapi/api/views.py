@@ -101,7 +101,7 @@ def status(request):
 	
 	if request.method == "GET":
 		numbers=connection.cursor()
-		numbers.execute("select ((select count(*) from USER) as user, (select COUNT(*) from THREAD) as thread, (select COUNT(*) from FORUM) as forum, (select COUNT(*) from POST) as post)")
+		numbers.execute("select (select count(*) from USER) as user, (select COUNT(*) from THREAD) as thread, (select COUNT(*) from FORUM) as forum, (select COUNT(*) from POST) as post from FORUM, THREAD, USER, POST")
 		responce=dictfetchone(numbers,None)
 		response1= {
 			"code":0,
