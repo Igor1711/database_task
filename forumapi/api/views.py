@@ -22,7 +22,7 @@ def changedictuser(user):
 	user1["subscription"]=dumps(follow.fetchall())
 	return user1
 	
-def relateddict(dict1, relate)
+def relateddict(dict1, relate):
 	if change is None:
 		return dict1
 	else: 
@@ -36,7 +36,7 @@ def relateddict(dict1, relate)
 				user=true
 			if element=="thread":
 				thread=true
-		if forum==true or user==true or thread=true:
+		if forum==true or user==true or thread==true:
 			realtion=connection.cursor()
 			if forum == true:
 				relation.execute("select ID as id, name,short_name,user from FORUM where short_name=%s",[dict1[forum]])
@@ -71,11 +71,10 @@ def dictfetchall(cursor, change):
 def dictfetchone(cursor, relate):
 	columns=[col[0] for col in cursor.description]
 	row=cursor.fetchone()
-	if relate="user":
+	if relate=="user":
 		return changedictuser(dict(zip(columns, row)))
 	else:
-		return (dict(zip(columns,row))
-
+		return (dict(zip(columns,row)))
 
 def clear(request):
 
@@ -437,7 +436,7 @@ def usercreate(request):
 		return HttpResponse(dumps(response))
 
 def userdetails(request):
-		if request.method=="GET":
+	if request.method=="GET":
 		email=request.GET.get("email")
 		if email is None:
 			response={"code":2,"response":"Invalid email required"}
@@ -449,13 +448,13 @@ def userdetails(request):
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
-        else: 
+	else: 
 		response={"code":3, "response":"error expected GET request"}
 		return HttpResponse(dumps(response))
 		
 def userfollow(request):
 	
-	if request.method=="POST"
+	if request.method=="POST":
 		follower=request.POST.get("follower")
 		followee=request.POST.get("followee")
 		if (follower is None or followee is None):
@@ -564,7 +563,7 @@ def userlistposts(request):
 
 def userunfollow(request):
 
-        	if request.method=="POST"
+       	if request.method=="POST":
 		follower=request.POST.get("follower")
 		followee=request.POST.get("followee")
 		if (follower is None or followee is None):
@@ -584,7 +583,7 @@ def userunfollow(request):
 
 def userupdateprofile(request):
 	
-	if request.method=="POST"
+	if request.method=="POST":
 		user=request.POST.get("user")
 		about=request.POST.get("about")
 		name=request.POST.get("name")
@@ -613,7 +612,7 @@ def threadclose(request):
 		else:
 			close=connection.cursor()
 			close.execute("update THREAD set isClosed=true where ID="+thread)
-			response={"code":0,"response":{"thread", thread"}}
+			response={"code":0,"response":{"thread", thread}}
 			return HttpResponse(dumps(response))
         else: 
 		response={"code":3, "response":"error expected POST request"}
@@ -621,7 +620,7 @@ def threadclose(request):
 
 def threadcreate(request):
 	
-	if request.method=="POST"
+	if request.method=="POST":
 		isDeleted=request.POST.get("isDeleted")
 		if isDeleted is None:
 			isDeleted="false"
@@ -632,7 +631,7 @@ def threadcreate(request):
 		date=request.POST.get("date")
 		message=request.POST.get("message")
 		slug=request.POST.get("slug")
-		if (forum is None or title is None isClosed is None or user is None or date is None or message is None or slug is None):
+		if (forum is None or title is None or isClosed is None or user is None or date is None or message is None or slug is None):
 			response={"code":2,"response":"Invalid request, fill all fields required"}
 			return HttpResponse(dumps(response))
 		else:
@@ -747,7 +746,7 @@ def threadopen(request):
 		else:
 			open1=connection.cursor()
 			open1.execute("update THREAD set isClosed=true where ID="+thread)
-			response={"code":0,"response":{"thread", thread"}}
+			response={"code":0,"response":{"thread", thread}}
 			return HttpResponse(dumps(response))
         else: 
 		response={"code":3, "response":"error expected POST request"}
@@ -788,7 +787,7 @@ def threadrestore(request):
 		
 def threadsubscribe(request):
 	
-	if request.method="POST":
+	if request.method=="POST":
 		thread=request.POST.get("thread")
 		user=request.POST.get("user")
 		if (user is None or thread is None):
@@ -797,7 +796,7 @@ def threadsubscribe(request):
 		else:
 			sudscribe=connection.cursor()
 			subscribe.execute("insert into SUBSCRIPTION(threadid,user) values("+thread+",%s)",[user])
-			response={"code":0,"response":{"thread", thread, "user": user}}
+			response={"code":0,"response":{"thread": thread, "user": user}}
 			return HttpResponse(dumps(response))
         else: 
 		response={"code":3, "response":"error expected POST request"}
@@ -806,7 +805,7 @@ def threadsubscribe(request):
         
 def threadunsubscribe(request):
 
-        	if request.method="POST":
+       	if request.method=="POST":
 		thread=request.POST.get("thread")
 		user=request.POST.get("user")
 		if (user is None or thread is None):
@@ -815,7 +814,7 @@ def threadunsubscribe(request):
 		else:
 			sudscribe=connection.cursor()
 			subscribe.execute("delete from SUBSCRIPTION where thread="+thread+" and user like %s)",[user])
-			response={"code":0,"response":{"thread", thread, "user": user}}
+			response={"code":0,"response":{"thread": thread, "user": user}}
 			return HttpResponse(dumps(response))
         else: 
 		response={"code":3, "response":"error expected POST request"}
@@ -823,7 +822,7 @@ def threadunsubscribe(request):
         
 def threadupdate(request):
 
-        if request.method=="POST"
+        if request.method=="POST":
 		thread=request.POST.get("thread")
 		message=request.POST.get("message")
 		slug=request.POST.get("slug")
@@ -843,10 +842,10 @@ def threadupdate(request):
 		return HttpResponse(dumps(response))
 def threadvote(request):
 
-         if request.method=="POST":
+	if request.method=="POST":
 		thread=request.POST.get("thread")
 		vote=request.POST.get("vote")
-		if (post is None) or (vote is None):
+		if (post is None or vote is None):
 			response={"code":2,"response":"Invalid request, post id and mark required"}
 			return HttpResponse(dumps(response))
 		else:
@@ -856,7 +855,7 @@ def threadvote(request):
 			response=dictfetchone(vote,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
-        else: 
+	else:
 		response={"code":3, "response":"error expected POST request"}
 		return HttpResponse(dumps(response))
 
