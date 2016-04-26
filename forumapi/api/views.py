@@ -474,19 +474,19 @@ def userlistfollowers(request):
 			response={"code":2,"response":"Invalid request, user required"}
 			return HttpResponse(dumps(response))
 		else:
-#			order=request.GET.get("order")
-#			if order is None:
-			order="desc"
-#			limit=request.GET.get("limit")
-			limiting=" "
-#			if limit is not None:
-#				limiting=" LIMIT "+limit
-#			since=request.GET.get("since_id")
+			order=request.GET.get("order")
+			if order is None:
+				order="desc"
+			limit=request.GET.get("limit")
+			limiting=""
+			if limit is not None:
+				limiting=" LIMIT "+limit
+			since=request.GET.get("since_id")
 			news=""
-#			if since is not None:
-#				news="and ID>="+since
+			if since is not None:
+				news="and ID>="+since
 			followers=connection.cursor()
-			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER) order by name", [user])
+			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email in (select follower from FOLLOWING where followee like %s "+news+")"+limiting+" order by name "+order, [user])
 			response=dictfetchall(followers,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
