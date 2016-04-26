@@ -40,13 +40,13 @@ def relateddict(dict1, relate):
 			realtion=connection.cursor()
 			if forum == true:
 				relation.execute("select ID as id, name,short_name,user from FORUM where short_name=%s",[dict1[forum]])
-				dict1[forum]=relation(dictfetchone(relation,None))
+				dict1[forum]=relation(dictfetchall(relation,None))
 			if user == true:
 				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email=%s", [dict1[user]])
-				dict1[user]=relation(dictfetchone(relation,"user"))
+				dict1[user]=relation(dictfetchall(relation,"user"))
 			if thread == true:
 				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+dict1[thread])
-				dict1[thread]=relation(dictfetchone(relation,None))
+				dict1[thread]=relation(dictfetchall(relation,None))
 		return dict1
 	
 
@@ -57,24 +57,18 @@ def dictfetchall(cursor, change):
 			dict(zip(columns, row))
 			for row in cursor.fetchall()
 		]
-	if change=="user":
-		result=[
-			changedictuser(dict(zip(columns, row)))
-			for row in cursor.fetchall()
-		]
-	else: 	
-		result=[
-			relateddict(dict(zip(columns, row)),change)
-			for row in cursor.fetchall()
-		]
-	return result	
-def dictfetchone(cursor, relate):
-	columns=[col[0] for col in cursor.description]
-	row=cursor.fetchone()
-	if relate=="user":
-		return changedictuser(dict(zip(columns, row)))
 	else:
-		return (dict(zip(columns,row)))
+		if change=="user":
+			result=[
+				changedictuser(dict(zip(columns, row)))
+				for row in cursor.fetchall()
+			]
+		else: 	
+			result=[
+				relateddict(dict(zip(columns, row)),change)
+				for row in cursor.fetchall()
+			]
+	return result	
 
 def clear(request):
 
@@ -101,8 +95,8 @@ def status(request):
 	
 	if request.method == "GET":
 		numbers=connection.cursor()
-		numbers.execute("select (select count(*) from USER) as user, (select COUNT(*) from THREAD) as thread, (select COUNT(*) from FORUM) as forum, (select COUNT(*) from POST) as post from FORUM, THREAD, USER, POST")
-		responce=dictfetchone(numbers,None)
+		numbers.execute("select (select count(*) from FORUM) as forum,(select count(*) from USER) as user, (select count(*) from THREAD) as thread, (select count(*) from POST) as post")
+		response=dictfetchall(numbers,None)
 		response1= {
 			"code":0,
 			"response":response
@@ -403,7 +397,7 @@ def postvote(request):
 			vote=connection.cursor()
 			vote.execute("insert into VOTE1(object,mark) values("+post+","+vote+")")
 			vote.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
-			response=dictfetchone(vote,None)
+			response=dictfetchall(vote,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
@@ -427,7 +421,7 @@ def usercreate(request):
 			newuser=connection.cursor()
 			newuser.execute("insert into USER(username, name, about, email, isAnonymous) values(%s,%s,%s,%s,"+isAnonymous+")",[username,name,about,email])
 			newuser.execute("select about,email, ID as id, isAnonymous,name,username from USER where email=%s",[email])
-			response=dictfetchone(newuser,None)
+			response=dictfetchall(newuser,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -444,7 +438,7 @@ def userdetails(request):
 		else:
 			user=connection.cursor()
 			user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [email])
-			response=dictfetchone(user,"user")
+			response=dictfetchall(user,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -464,7 +458,7 @@ def userfollow(request):
 			follow=connection.cursor()
 			follow.execute("insert FOLLOWING(follower,followee) values(%s,%s)",[follower,followee])
 			follow.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [follower])
-			response=dictfetchone(follow,"user")
+			response=dictfetchall(follow,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -474,7 +468,7 @@ def userfollow(request):
 
 def userlistfollowers(request):
 	
-	if request.methos=="GET":
+	if request.method=="GET":
 		user=request.GET.get("email")
 		if user is None:
 			response={"code":2,"response":"Invalid request, user required"}
@@ -484,7 +478,7 @@ def userlistfollowers(request):
 			if order is None:
 				order="desc"
 			limit=request.GET.get("limit")
-			limiting=""
+			limiting=" "
 			if limit is not None:
 				limiting=" LIMIT "+limit
 			since=request.GET.get("since_id")
@@ -492,8 +486,8 @@ def userlistfollowers(request):
 			if since is not None:
 				news="and ID>="+since
 			followers=connection.cursor()
-			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email in (select follower from FOLLOWING where followee like %s)"+limiting+" order by name "+order, [user])
-			response=dictfetchall(followers,"user")
+			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER) order by name", [user])
+			response=dictfetchall(followers,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 
@@ -503,29 +497,29 @@ def userlistfollowers(request):
 
 def userlistfollowing(request):
 
-        if request.methos=="GET":
+        if request.method=="GET":
 		user=request.GET.get("email")
 		if user is None:
 			response={"code":2,"response":"Invalid request, user required"}
 			return HttpResponse(dumps(response))
 		else:
-			order=request.GET.get("order")
-			if order is None:
-				order="desc"
-			limit=request.GET.get("limit")
+#			order=request.GET.get("order")
+#			if order is None:
+			order="desc"
+#			limit=request.GET.get("limit")
 			limiting=""
-			if limit is not None:
-				limiting=" LIMIT "+limit
-			since=request.GET.get("since_id")
+#			if limit is not None:
+#				limiting=" LIMIT "+limit
+#			since=request.GET.get("since_id")
 			news=""
-			if since is not None:
-				news="and ID>="+since
+#			if since is not None:
+#				news="and ID>="+since
 			followers=connection.cursor()
-			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email in (select followee from FOLLOWING where follower like %s)"+limiting+" order by name "+order, [user])
-			response=dictfetchall(followers,"user")
+			followers.execute("select about, email, email as following,email as followers, USER.ID as id, isAnonymous,name, email as subscriptions, username from USER where email in (select follower from FOLLOWING where followee like %s+"news+")+"+limiting+" order by name "+order, [user])
+			response=dictfetchall(followers,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
-
+		
         else: 
 		response={"code":3, "response":"error expected GET request"}
 		return HttpResponse(dumps(response))
@@ -573,7 +567,7 @@ def userunfollow(request):
 			follow=connection.cursor()
 			follow.execute("delete from FOLLOWING where follower like %s and followee like %s",[follower,followee])
 			follow.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [follower])
-			response=dictfetchone(follow,"user")
+			response=dictfetchall(follow,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -594,7 +588,7 @@ def userupdateprofile(request):
 			update=connection.cursor()
 			update.execute("update USER set name=%s about=%s where email like %s", [name, about, email])
 			update.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [email])
-			response=dictfetchone(update,"user")
+			response=dictfetchall(update,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	
@@ -833,7 +827,7 @@ def threadupdate(request):
 			update=connection.cursor()
 			update.execute("update THREAD set slug=%s message=%s where ID="+thread, [slug, message])
 			update.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
-			response=dictfetchone(update,None)
+			response=dictfetchall(update,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	
@@ -852,7 +846,7 @@ def threadvote(request):
 			vote=connection.cursor()
 			vote.execute("insert into VOTE(object,mark) values("+thread+","+vote+")")
 			vote.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
-			response=dictfetchone(vote,None)
+			response=dictfetchall(vote,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	else:
