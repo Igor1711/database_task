@@ -14,12 +14,12 @@ class MyJsonEncoder(JSONEncoder):
 def changedictuser(user):
 	user1=user
 	follow=connection.cursor()
-	follow.execute("select user1 from FOLLOW where user2=%s",[user1.get("email")])
-	user1["following"]=dumps(follow)
-	follow.execute("select user2 from FOLLOW where user1=%s",[user1.get("email")])
-	user1["followers"]=dumps(follow.fetchall())
-	follow.execute("select threadid from SUBSCRIPTION where user=%s",[user1.get("email")])
-	user1["subscription"]=dumps(follow.fetchall())
+	follow.execute("select followee from FOLLOWING where follower like %s",[user1.get("email")])
+	user1["following"]=dumps(follow.fetchall())
+	follow.execute("select follower from FOLLOWING where followee like %s",[user1.get("email")])
+	user["followers"]=dumps(follow.fetchall())
+	follow.execute("select threadid from SUBSCRIPTION where user like %s",[user1.get("email")])
+	user["subscription"]=dumps(follow.fetchall())
 	return user1
 	
 def relateddict(dict1, relate):
@@ -474,17 +474,17 @@ def userlistfollowers(request):
 			response={"code":2,"response":"Invalid request, user required"}
 			return HttpResponse(dumps(response))
 		else:
-			order=request.GET.get("order")
-			if order is None:
-				order="desc"
-			limit=request.GET.get("limit")
+#			order=request.GET.get("order")
+#			if order is None:
+			order="desc"
+#			limit=request.GET.get("limit")
 			limiting=" "
-			if limit is not None:
-				limiting=" LIMIT "+limit
-			since=request.GET.get("since_id")
+#			if limit is not None:
+#				limiting=" LIMIT "+limit
+#			since=request.GET.get("since_id")
 			news=""
-			if since is not None:
-				news="and ID>="+since
+#			if since is not None:
+#				news="and ID>="+since
 			followers=connection.cursor()
 			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER) order by name", [user])
 			response=dictfetchall(followers,None)
@@ -503,20 +503,20 @@ def userlistfollowing(request):
 			response={"code":2,"response":"Invalid request, user required"}
 			return HttpResponse(dumps(response))
 		else:
-#			order=request.GET.get("order")
-#			if order is None:
-			order="desc"
-#			limit=request.GET.get("limit")
+			order=request.GET.get("order")
+			if order is None:
+				order="desc"
+			limit=request.GET.get("limit")
 			limiting=""
-#			if limit is not None:
-#				limiting=" LIMIT "+limit
-#			since=request.GET.get("since_id")
+			if limit is not None:
+				limiting=" LIMIT "+limit
+			since=request.GET.get("since_id")
 			news=""
-#			if since is not None:
-#				news="and ID>="+since
+			if since is not None:
+				news="and ID>="+since
 			followers=connection.cursor()
-			followers.execute("select about, email, email as following,email as followers, USER.ID as id, isAnonymous,name, email as subscriptions, username from USER where email in (select follower from FOLLOWING where followee like %s+"news+")+"+limiting+" order by name "+order, [user])
-			response=dictfetchall(followers,None)
+			followers.execute("select about, email, email as following,email as followers, USER.ID as id, isAnonymous,name, email as subscriptions, username from USER where email in (select followee from FOLLOWING where follower like %s"+news+")"+limiting+" order by name "+order , [user])
+			response=dictfetchall(followers,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 		
