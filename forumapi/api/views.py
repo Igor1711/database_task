@@ -14,11 +14,11 @@ class MyJsonEncoder(JSONEncoder):
 def changedictuser(user):
 	user1=user
 	follow=connection.cursor()
-	follow.execute("select followee from FOLLOWING where follower like %s",[user1.get("email")])
-	user1["following"]=dumps(follow.fetchall())
-	follow.execute("select follower from FOLLOWING where followee like %s",[user1.get("email")])
+	follow.execute("select followee as object from FOLLOWING where follower like %s",[user1.get("email")])
+	user1["following"]=dumps(dictfetchall(follow,"list"))
+	follow.execute("select follower as object from FOLLOWING where followee like %s",[user1.get("email")])
 	user["followers"]=dumps(follow.fetchall())
-	follow.execute("select threadid from SUBSCRIPTION where user like %s",[user1.get("email")])
+	follow.execute("select threadid as object from SUBSCRIPTION where user like %s",[user1.get("email")])
 	user["subscription"]=dumps(follow.fetchall())
 	return user1
 	
@@ -40,17 +40,42 @@ def relateddict(dict1, relate):
 			realtion=connection.cursor()
 			if forum == true:
 				relation.execute("select ID as id, name,short_name,user from FORUM where short_name=%s",[dict1[forum]])
-				dict1[forum]=relation(dictfetchall(relation,None))
+				dict1[forum]=relation(dictfetchone(relation,None))
 			if user == true:
 				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email=%s", [dict1[user]])
-				dict1[user]=relation(dictfetchall(relation,"user"))
+				dict1[user]=relation(dictfetchone(relation,"user"))
 			if thread == true:
 				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+dict1[thread])
-				dict1[thread]=relation(dictfetchall(relation,None))
+				dict1[thread]=relation(dictfetchone(relation,None))
 		return dict1
 	
 
 def dictfetchall(cursor, change):
+	columns=[col[0] for col in cursor.description]
+	if change is None:
+		result= [
+			dict(zip(columns, row))
+			for row in cursor.fetchall()
+		]
+	else:
+		if change=="user":
+			result=[
+				changedictuser(dict(zip(columns, row)))
+				for row in cursor.fetchall()
+			]
+		if change=="list":
+			result=[
+				dict(zip(columns, row))).values
+				for row in cursor.fetchall()
+			]
+		else:
+			result=[
+				relateddict(dict(zip(columns, row)),change)
+				for row in cursor.fetchall()
+			]
+	return result
+	
+def dictfetchone(cursor, change):
 	columns=[col[0] for col in cursor.description]
 	if change is None:
 		result= [
@@ -68,8 +93,7 @@ def dictfetchall(cursor, change):
 				relateddict(dict(zip(columns, row)),change)
 				for row in cursor.fetchall()
 			]
-	return result	
-
+	return result[0]	
 def clear(request):
 
 	if request.method == "POST":
@@ -123,7 +147,7 @@ def forumcreate(request):
 			new_forum=connection.cursor()
 			new_forum.execute("insert into FORUM(name,short_name,user) values("+name+","+short_name+","+user+")")
 			new_forum.execute("select ID as id,name,short_name,user from FORUM where name like %s and short_name like %s and user like %s",[name,short_name,user])
-			response=dictfetchall(new_forum, None)
+			response=dictfetchone(new_forum, None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	else:
@@ -139,9 +163,9 @@ def forumdetails(request):
 			return HttpResponse(dumps(response))
 		details=connection.cursor()
 		details.execute('select ID as id, name, short_name, user from FORUM where short_name like %s group by short_name',[short_name])
-		response=dictfetchall(details, None)
+		response=dictfetchone(details, None)
 		if dumps(response)==[] is None:
-			response1={"code":0,"response":"forum "+short_name+" does not exist"}
+			response1={"code":4,"response":"forum "+short_name+" does not exist"}
 		else:
 			response1={"code":0, "response":response}
 		return HttpResponse(dumps(response1))
@@ -290,7 +314,7 @@ def postdetails(request):
 		else:
 			post=connection.cursor()
 			post.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
-			response=dictfetchall(post, related)
+			response=dictfetchone(post, related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
@@ -377,7 +401,7 @@ def postupdate(request):
 			update=connection.cursor()
 			update.execute("update POST set message=%s, isEdited=true where ID="+post,[message])
 			update.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
-			response=dictfetchall(update,None)
+			response=dictfetchone(update,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
@@ -397,7 +421,7 @@ def postvote(request):
 			vote=connection.cursor()
 			vote.execute("insert into VOTE1(object,mark) values("+post+","+vote+")")
 			vote.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
-			response=dictfetchall(vote,None)
+			response=dictfetchone(vote,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
@@ -421,7 +445,7 @@ def usercreate(request):
 			newuser=connection.cursor()
 			newuser.execute("insert into USER(username, name, about, email, isAnonymous) values(%s,%s,%s,%s,"+isAnonymous+")",[username,name,about,email])
 			newuser.execute("select about,email, ID as id, isAnonymous,name,username from USER where email=%s",[email])
-			response=dictfetchall(newuser,None)
+			response=dictfetchone(newuser,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -438,7 +462,7 @@ def userdetails(request):
 		else:
 			user=connection.cursor()
 			user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [email])
-			response=dictfetchall(user,"user")
+			response=dictfetchone(user,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -458,7 +482,7 @@ def userfollow(request):
 			follow=connection.cursor()
 			follow.execute("insert FOLLOWING(follower,followee) values(%s,%s)",[follower,followee])
 			follow.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [follower])
-			response=dictfetchall(follow,"user")
+			response=dictfetchone(follow,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -567,7 +591,7 @@ def userunfollow(request):
 			follow=connection.cursor()
 			follow.execute("delete from FOLLOWING where follower like %s and followee like %s",[follower,followee])
 			follow.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [follower])
-			response=dictfetchall(follow,"user")
+			response=dictfetchone(follow,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -629,10 +653,10 @@ def threadcreate(request):
 			response={"code":2,"response":"Invalid request, fill all fields required"}
 			return HttpResponse(dumps(response))
 		else:
-			newthread=connection.fetchall()
+			newthread=connection.cursor()
 			newthread.execute("insert into THREAD(forum, title, isClosed, user, date, message,slug, isDeleted) values(%s,%s,"+isClosed+",%s,"+date+",%s,%s,"+isDeleted+")",[forum,title,user,message,slug])
 			newthread.execute("select date,forum,ID as id,isClosed, isDeleted,message,slug,title,user from THREAD where forum like %s and title like %s and user like %s and message like %s",[forum,title,user,message])
-			response=dictfetchall(newthread,"user")
+			response=dictfetchone(newthread,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	
@@ -652,7 +676,7 @@ def threaddetails(request):
 		else:
 			detail=connection.cursor()
 			detail.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
-			response=dictfetchall(detail,related)
+			response=dictfetchone(detail,related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 
@@ -827,7 +851,7 @@ def threadupdate(request):
 			update=connection.cursor()
 			update.execute("update THREAD set slug=%s message=%s where ID="+thread, [slug, message])
 			update.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
-			response=dictfetchall(update,None)
+			response=dictfetchone(update,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	
@@ -846,7 +870,7 @@ def threadvote(request):
 			vote=connection.cursor()
 			vote.execute("insert into VOTE(object,mark) values("+thread+","+vote+")")
 			vote.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
-			response=dictfetchall(vote,None)
+			response=dictfetchone(vote,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	else:
