@@ -48,7 +48,7 @@ def relateddict(dict1, relate):
 				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email=%s", [dict1['user']])
 				dict1['user']=dictfetchone(relation,"user")
 			if thread:
-				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+dict1['thread'])
+				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+str(dict1['thread']))
 				dict1['thread']=dictfetchone(relation,None)
 		return dict1
 	
@@ -80,10 +80,17 @@ def dictfetchone(cursor, change):
 
 	else:
 		if change=="user":
-			return changedictuser(dict(zip(columns, cursor.fetchone())))
-			
-		else: 	
-			return relateddict(dict(zip(columns, cursor.fetchone())),change)
+                        result=[
+                                changedictuser(dict(zip(columns, row)))
+                                for row in cursor.fetchall()
+                        ]
+                else:
+                        result=[
+                                relateddict(dict(zip(columns, row)),change)
+                                for row in cursor.fetchall()
+                        ]
+        	return result[0]
+		
 			
 def clear(request):
 
@@ -154,6 +161,7 @@ def forumdetails(request):
 			response={"code":2,"response":"Invalid request, forum name required"}
 			return HttpResponse(dumps(response))
 		details=connection.cursor()
+		related=['user']
 		details.execute('select ID as id, name, short_name, user from FORUM where short_name like %s group by short_name',[short_name])
 		response=dictfetchone(details, related)
 		if dumps(response)==[] is None:
@@ -172,7 +180,6 @@ def forumlistposts(request):
 		since=request.GET.get("since")
 		order=request.GET.get("order")
 		related=request.GET.get("related")
-		related=['user']
 		limit=request.GET.get("limit")
 		if forum is None:
 			response={"code":2,"response":"Invalid request, forum name required"}
@@ -216,9 +223,9 @@ def forumlistthreads(request):
 				limiting=" LIMIT "+limit
 			new_threads=""
 			if since is not None:
-				new_posts=" and date>="+since
-			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select count(*) from POST where thread=THREAD.ID) as posts slug, title, user from THREAD where forum=%s"+newposts+limitimg+"order by date "+order,[forum])
-			response=dictfetchall(posts, related)
+				new_threads=" and date>="+since
+			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message,(select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where forum=%s"+new_threads+limiting+"order by date "+order,[forum])
+			response=dictfetchall(threads, related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 		
