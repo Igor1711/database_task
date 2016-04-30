@@ -4,49 +4,52 @@ from django.db import connection, transaction
 from django.core.serializers import serialize
 from json import dumps, loads, JSONEncoder
 from django.db.models.query import QuerySet
+import datetime
 
-class MyJsonEncoder(JSONEncoder):
-	def encodesery(self, obj):
-		if isinstance(obj, QuerySet):
-			return loads(serialize('json', obj))
-		return JSONEncoder.default(self,obj)
+def getobjectlist(cursor):
+	columns=[col[0] for col in cursor.description]
+	return [
+		dict(zip(columns, row)).get("object")
+		for row in cursor.fetchall()
+	]
+
 	
 def changedictuser(user):
 	user1=user
 	follow=connection.cursor()
 	follow.execute("select followee as object from FOLLOWING where follower like %s",[user1.get("email")])
-	user1["following"]=dumps(dictfetchall(follow,"list"))
+	user1["following"]=getobjectlist(follow)
 	follow.execute("select follower as object from FOLLOWING where followee like %s",[user1.get("email")])
-	user["followers"]=dumps(follow.fetchall())
+	user1["followers"]=getobjectlist(follow)
 	follow.execute("select threadid as object from SUBSCRIPTION where user like %s",[user1.get("email")])
-	user["subscription"]=dumps(follow.fetchall())
+	user1["subscription"]=getobjectlist(follow)
 	return user1
 	
 def relateddict(dict1, relate):
-	if change is None:
+	if relate is None:
 		return dict1
 	else: 
-		forum=false
-		user=false
-		thread=flase
+		forum=False
+		user1=False
+		thread=False
 		for element in relate:
 			if element=="forum":
-				forum=true
+				forum=True
 			if element=="user":
-				user=true
+				user1=True
 			if element=="thread":
-				thread=true
-		if forum==true or user==true or thread==true:
-			realtion=connection.cursor()
-			if forum == true:
-				relation.execute("select ID as id, name,short_name,user from FORUM where short_name=%s",[dict1[forum]])
-				dict1[forum]=relation(dictfetchone(relation,None))
-			if user == true:
-				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email=%s", [dict1[user]])
-				dict1[user]=relation(dictfetchone(relation,"user"))
-			if thread == true:
-				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+dict1[thread])
-				dict1[thread]=relation(dictfetchone(relation,None))
+				thread=True
+		if forum or user1 or thread:
+			relation=connection.cursor()
+			if forum:
+				relation.execute("select ID as id, name,short_name,user from FORUM where short_name=%s",[dict1['forum']])
+				dict1['forum']=dictfetchone(relation,None)
+			if user1:
+				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email=%s", [dict1['user']])
+				dict1['user']=dictfetchone(relation,"user")
+			if thread:
+				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+dict1['thread'])
+				dict1['thread']=dictfetchone(relation,None)
 		return dict1
 	
 
@@ -63,11 +66,6 @@ def dictfetchall(cursor, change):
 				changedictuser(dict(zip(columns, row)))
 				for row in cursor.fetchall()
 			]
-		if change=="list":
-			result=[
-				dict(zip(columns, row))).values
-				for row in cursor.fetchall()
-			]
 		else:
 			result=[
 				relateddict(dict(zip(columns, row)),change)
@@ -78,22 +76,15 @@ def dictfetchall(cursor, change):
 def dictfetchone(cursor, change):
 	columns=[col[0] for col in cursor.description]
 	if change is None:
-		result= [
-			dict(zip(columns, row))
-			for row in cursor.fetchall()
-		]
+		return dict(zip(columns, cursor.fetchone()))
+
 	else:
 		if change=="user":
-			result=[
-				changedictuser(dict(zip(columns, row)))
-				for row in cursor.fetchall()
-			]
+			return changedictuser(dict(zip(columns, cursor.fetchone())))
+			
 		else: 	
-			result=[
-				relateddict(dict(zip(columns, row)),change)
-				for row in cursor.fetchall()
-			]
-	return result[0]	
+			return relateddict(dict(zip(columns, cursor.fetchone())),change)
+			
 def clear(request):
 
 	if request.method == "POST":
@@ -120,7 +111,7 @@ def status(request):
 	if request.method == "GET":
 		numbers=connection.cursor()
 		numbers.execute("select (select count(*) from FORUM) as forum,(select count(*) from USER) as user, (select count(*) from THREAD) as thread, (select count(*) from POST) as post")
-		response=dictfetchall(numbers,None)
+		response=dictfetchone(numbers,None)
 		response1= {
 			"code":0,
 			"response":response
@@ -145,9 +136,10 @@ def forumcreate(request):
 		else:
 
 			new_forum=connection.cursor()
-			new_forum.execute("insert into FORUM(name,short_name,user) values("+name+","+short_name+","+user+")")
+			new_forum.execute("insert into FORUM(name,short_name,user) values(%s,%s,%s)",[name,short_name,user])
 			new_forum.execute("select ID as id,name,short_name,user from FORUM where name like %s and short_name like %s and user like %s",[name,short_name,user])
 			response=dictfetchone(new_forum, None)
+			
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	else:
@@ -163,7 +155,7 @@ def forumdetails(request):
 			return HttpResponse(dumps(response))
 		details=connection.cursor()
 		details.execute('select ID as id, name, short_name, user from FORUM where short_name like %s group by short_name',[short_name])
-		response=dictfetchone(details, None)
+		response=dictfetchone(details, related)
 		if dumps(response)==[] is None:
 			response1={"code":4,"response":"forum "+short_name+" does not exist"}
 		else:
@@ -180,6 +172,7 @@ def forumlistposts(request):
 		since=request.GET.get("since")
 		order=request.GET.get("order")
 		related=request.GET.get("related")
+		related=['user']
 		limit=request.GET.get("limit")
 		if forum is None:
 			response={"code":2,"response":"Invalid request, forum name required"}
@@ -188,13 +181,13 @@ def forumlistposts(request):
 			posts=connection.cursor()
 			if order is None:
 				order="desc"
-			limiting=""
+			limiting=" "
 			if limit is not None:
 				limiting=" LIMIT "+limit
 			new_posts=""
 			if since is not None:
 				new_posts=" and date>="+since
-			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where forum=%s"+newposts+limitimg+"order by date "+order,[forum])
+			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where forum=%s"+new_posts+limiting+"order by date "+order,[forum])
 			response=dictfetchall(posts, related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -224,7 +217,7 @@ def forumlistthreads(request):
 			new_threads=""
 			if since is not None:
 				new_posts=" and date>="+since
-			posts.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select count(*) from POST where thread=THREAD.ID) as posts slug, title, user from THREAD where forum=%s"+newposts+limitimg+"order by date "+order,[forum])
+			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select count(*) from POST where thread=THREAD.ID) as posts slug, title, user from THREAD where forum=%s"+newposts+limitimg+"order by date "+order,[forum])
 			response=dictfetchall(posts, related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -510,8 +503,9 @@ def userlistfollowers(request):
 			if since is not None:
 				news="and ID>="+since
 			followers=connection.cursor()
-			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email in (select follower from FOLLOWING where followee like %s "+news+")"+limiting+" order by name "+order, [user])
-			response=dictfetchall(followers,None)
+			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER")# where email in (select follower from FOLLOWING where followee like %s"+news+")"+limiting+" order by name "+order, [user])
+#			followers.execute("select about from USER")
+			response=dictfetchall(followers,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 
@@ -540,7 +534,7 @@ def userlistfollowing(request):
 				news="and ID>="+since
 			followers=connection.cursor()
 			followers.execute("select about, email, email as following,email as followers, USER.ID as id, isAnonymous,name, email as subscriptions, username from USER where email in (select followee from FOLLOWING where follower like %s"+news+")"+limiting+" order by name "+order , [user])
-			response=dictfetchall(followers,"user")
+			response=dictfetchall(followers,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 		
