@@ -275,42 +275,44 @@ def forumlistusers(request):
 		
 def postcreate(request):
 	
-	if request.method == "POST":
+	if request.method == "GET":
 		data=loads(request.body)
-		date=data.get("date")
-		thread=data.get("thread")
-		message=data.get("message")
-		user=data.get("user")
-		forum=data.get("forum")
-		parent=data.get("parent")
-		if parent is None:
-			parent="null"
-		isApproved=request.POST.get("isApproved")
+		date='11111'#data.get("date")
+		thread=1#data.get("thread")
+		message="dsfgsfdgfsf"data.get("message")
+		user='data.get("user")'
+		forum='data.get("forum")'
+		parent=None#data.get("parent")
+		isApproved=data.get("isApproved")
 		if isApproved is None:
 			isApproved="false"
-		isHighlighted=request.POST.get("isHighlighted")
+		isHighlighted=data.get("isHighlighted")
 		if isHighlighted is None:
 			isHighlighted="false"
-		isEdited=request.POST.get("isEdited")
+		isEdited=data.get("isEdited")
 		if isEdited is None:
 			isEdited="false"
-		isSpam=request.POST.get("isSpam")
+		isSpam=data.get("isSpam")
 		if isSpam is None:
 			isSpam="false"
-		isDeleted=request.POST.get("isDeleted")
+		isDeleted=data.get("isDeleted")
 		if isDeleted is None:
 			isDeleted="false"
-		if (date is None) or (thread is None) or (message is None) or (user is None) or (forum is None):
+		if date is None or thread is None or message is None or user is None or forum is None:
 			response={"code":2,"response":"Invalid request, forum, date, thread,message, user required"}
 			return HttpResponse(dumps(response))
 		else:
 			post=connection.cursor()
-			post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values("+str(date)+","+thread+", %s,%s,%s, "+parent+", "+str(isApproved)+", "+str(isHighlighted)+", "+str(isEdited)+", "+str(isSpam)+", "+str(isDeleted)+")", [message,user,forum])
-			post.execute("select date, forum, ID as id, isApproved, isDeleted, isEdited, isHightlighted, isSpam,message,thread,user from POST where message like %s and user like %s and forum like %s and thread="+thread, [message,user, forum])
-			response=dectfecthone(post, None)
-			response1={"code":0, "response":response}
-			return HttpResponse(dumps(response1))
-				
+			code=0
+			try:
+				post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values(%s,"+str(thread)+", %s,%s,%s, "+str(parent)+", "+str(isApproved)+", "+str(isHighlighted)+", "+str(isEdited)+", "+str(isSpam)+", "+str(isDeleted)+")", [date,message,user,forum])
+				post.execute("select date, forum, ID as id, isApproved, isDeleted, isEdited, isHightlighted, isSpam,message,thread,user from POST where message like %s and user like %s and forum like %s and thread="+str(thread), [message,user, forum])
+				response="dectfecthone(post, None)"
+			except Exception:
+				code=3
+				response="Invalid data"
+			response1={"code":code, "response":response}
+			return HttpResponse(dumps(response1))				
 	
         else: 
 		response={"code":3, "response":"error expected POST request"}
