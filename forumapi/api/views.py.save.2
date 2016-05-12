@@ -276,13 +276,13 @@ def forumlistusers(request):
 def postcreate(request):
 	
 	if request.method == "POST":
-		data=loads(request.body)
-		date=data.get("date")
-		thread=data.get("thread")
-		message=data.get("message")
-		user=data.get("user")
-		forum=data.get("forum")
-		parent=data.get("parent")
+		data=
+		date=request.POST.get("date")
+		thread=request.POST.get("thread")
+		message=request.POST.get("message")
+		user=request.POST.get("user")
+		forum=request.POST.get("forum")
+		parent=request.POST.get("parent")
 		if parent is None:
 			parent="null"
 		isApproved=request.POST.get("isApproved")
@@ -305,7 +305,7 @@ def postcreate(request):
 			return HttpResponse(dumps(response))
 		else:
 			post=connection.cursor()
-			post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values("+str(date)+","+thread+", %s,%s,%s, "+parent+", "+str(isApproved)+", "+str(isHighlighted)+", "+str(isEdited)+", "+str(isSpam)+", "+str(isDeleted)+")", [message,user,forum])
+			post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values("+date+","+thread+", %s,%s,%s, "+parent+", "+isApproved+", "+isHighlighted+", "+isEdited+", "+isSpam+", "+isDeleted+")", [message,user,forum])
 			post.execute("select date, forum, ID as id, isApproved, isDeleted, isEdited, isHightlighted, isSpam,message,thread,user from POST where message like %s and user like %s and forum like %s and thread="+thread, [message,user, forum])
 			response=dectfecthone(post, None)
 			response1={"code":0, "response":response}
@@ -654,23 +654,22 @@ def threadclose(request):
 def threadcreate(request):
 	
 	if request.method=="POST":
-		data=loads(request.body)
-		isDeleted=data.get("isDeleted")
+		isDeleted=request.POST.get("isDeleted")
 		if isDeleted is None:
 			isDeleted="false"
-		forum=data.get("forum")
-		title=data.get("title")
-		isClosed=data.get("isClosed")
-		user=data.get("user")
-		date=data.get("date")
-		message=data.get("message")
-		slug=data.get("slug")
+		forum=request.POST.get("forum")
+		title=request.POST.get("title")
+		isClosed=request.POST.get("isClosed")
+		user=request.POST.get("user")
+		date=request.POST.get("date")
+		message=request.POST.get("message")
+		slug=request.POST.get("slug")
 		if (forum is None or title is None or isClosed is None or user is None or date is None or message is None or slug is None):
 			response={"code":2,"response":"Invalid request, fill all fields required"}
 			return HttpResponse(dumps(response))
 		else:
 			newthread=connection.cursor()
-			newthread.execute("insert into THREAD(forum, title, isClosed, user, date, message,slug, isDeleted) values(%s,%s,"+str(isClosed)+",%s,%s,%s,%s,"+str(isDeleted)+")",[forum,title,user,date,message,slug])
+			newthread.execute("insert into THREAD(forum, title, isClosed, user, date, message,slug, isDeleted) values(%s,%s,"+isClosed+",%s,"+date+",%s,%s,"+isDeleted+")",[forum,title,user,message,slug])
 			newthread.execute("select date,forum,ID as id,isClosed, isDeleted,message,slug,title,user from THREAD where forum like %s and title like %s and user like %s and message like %s",[forum,title,user,message])
 			response=dictfetchone(newthread,"user")
 			response1={"code":0,"response":response}

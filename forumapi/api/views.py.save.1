@@ -1,4 +1,3 @@
-from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render
 from django.http import HttpResponse, HttpResponseRedirect
 from django.db import connection, transaction
@@ -23,7 +22,7 @@ def changedictuser(user):
 	follow.execute("select follower as object from FOLLOWING where followee like %s",[user1.get("email")])
 	user1["followers"]=getobjectlist(follow)
 	follow.execute("select threadid as object from SUBSCRIPTION where user like %s",[user1.get("email")])
-	user1["subscriptions"]=getobjectlist(follow)
+	user1["subscription"]=getobjectlist(follow)
 	return user1
 	
 def relateddict(dict1, relate):
@@ -49,7 +48,7 @@ def relateddict(dict1, relate):
 				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email=%s", [dict1['user']])
 				dict1['user']=dictfetchone(relation,"user")
 			if thread:
-				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID and isDeleted=0) as posts, slug, title, user from THREAD where ID="+str(dict1['thread']))
+				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+dict1['thread'])
 				dict1['thread']=dictfetchone(relation,None)
 		return dict1
 	
@@ -63,16 +62,15 @@ def dictfetchall(cursor, change):
 		]
 	else:
 		if change=="user":
-			result=[
-				changedictuser(dict(zip(columns, row)))
-				for row in cursor.fetchall()
-			]
+			return changedictuser(dict(zip(columns, cursor.fetchone())))
+			
+
 		else:
 			result=[
 				relateddict(dict(zip(columns, row)),change)
 				for row in cursor.fetchall()
 			]
-	return result
+	return result[0]
 	
 def dictfetchone(cursor, change):
 	columns=[col[0] for col in cursor.description]
@@ -90,21 +88,17 @@ def dictfetchone(cursor, change):
                                 relateddict(dict(zip(columns, row)),change)
                                 for row in cursor.fetchall()
                         ]
-        	return result[0]
+        	return result
 		
-@csrf_exempt
+			
 def clear(request):
 
 	if request.method == "POST":
-		forum=connection.cursor()
+		database=connection.cursor()
 		forum.execute("DELETE from FORUM")
 		forum.execute("delete from POST")
 		forum.execute("delete from USER")
 		forum.execute("delete from THREAD")
-		forum.execute("delete from VOTE")
-		forum.execute("delete from VOTE1")
-		forum.execute("delete from SUBSCRIPTION")
-		forum.execute("delete from FOLLOWING")
 		response={
 			"code": 0,
 			"response":"OK"
@@ -135,29 +129,24 @@ def status(request):
 			"response":"error GET method required"
 		}
 		return HttpResponse(dumps(response1))
-@csrf_exempt
+
 def forumcreate(request):
 
 	if request.method == "POST":
-		data=loads(request.body)
-		name=data.get("name")
-		short_name=data.get("short_name")
-		user=data.get("user")
-		if name is None or short_name is None or user is None:
+		name=request.POST.get("name")
+		short_name=request.get("short_name")
+		user=request.get("user")
+		if (name is None) or (short_name is None) or (user is None):
 			response={"code":2,"response":"Invalid request"}
 			return HttpResponse(dumps(response))
 		else:
-			code =0
+
 			new_forum=connection.cursor()
-			try:
-				new_forum.execute("insert into FORUM(name,short_name,user) values(%s,%s,%s)",[name,short_name,user])
-				new_forum.execute("select ID as id,name,short_name,user from FORUM where name like %s and short_name like %s and user like %s",[name,short_name,user])
-				response=dictfetchone(new_forum, None)
-			except Exception:
-				response="Invalid data"
-				new_forum.execute("delete from FORUM where short_name=%s",[short_name])
-				code=3
-			response1={"code":code,"response":response}
+			new_forum.execute("insert into FORUM(name,short_name,user) values(%s,%s,%s)",[name,short_name,user])
+			new_forum.execute("select ID as id,name,short_name,user from FORUM where name like %s and short_name like %s and user like %s",[name,short_name,user])
+			response=dictfetchone(new_forum, None)
+			
+			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	else:
 		response={"code":3,"response":"error POST method required"}
@@ -172,14 +161,12 @@ def forumdetails(request):
 			return HttpResponse(dumps(response))
 		details=connection.cursor()
 		related=['user']
-		code=0
 		details.execute('select ID as id, name, short_name, user from FORUM where short_name like %s group by short_name',[short_name])
-		try:
-			response=dictfetchone(details, related)
-		except Exception:
-			response="forum "+short_name+" does not exist"
-			code=1
-		response1={"code":code, "response":response}
+		response=dictfetchone(details, related)
+		if dumps(response)==[] is None:
+			response1={"code":4,"response":"forum "+short_name+" does not exist"}
+		else:
+			response1={"code":0, "response":response}
 		return HttpResponse(dumps(response1))
 	else: 
 		response={"code":3, "response":"error expected GET request"}
@@ -192,6 +179,7 @@ def forumlistposts(request):
 		since=request.GET.get("since")
 		order=request.GET.get("order")
 		related=request.GET.get("related")
+		related=['user']
 		limit=request.GET.get("limit")
 		if forum is None:
 			response={"code":2,"response":"Invalid request, forum name required"}
@@ -202,11 +190,11 @@ def forumlistposts(request):
 				order="desc"
 			limiting=" "
 			if limit is not None:
-				limiting=" LIMIT "+str(limit)
+				limiting=" LIMIT "+limit
 			new_posts=""
-			if since is None:
-				since="0000-00-00 00:00:00"
-			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where forum=%s and date>=%s"+limiting+"order by date "+order,[forum,since])
+			if since is not None:
+				new_posts=" and date>="+since
+			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where forum=%s"+new_posts+limiting+"order by date "+order,[forum])
 			response=dictfetchall(posts, related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -234,10 +222,10 @@ def forumlistthreads(request):
 			if limit is not None:
 				limiting=" LIMIT "+limit
 			new_threads=""
-			if since is None:
-				since="0000-00-00 00:00:00"
-			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message,(select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID and isDeleted=0) as posts, slug, title, user from THREAD where forum=%s and date>=%s"+limiting+"order by date "+order,[forum,since])
-			response=dictfetchall(threads, related)
+			if since is not None:
+				new_posts=" and date>="+since
+			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select count(*) from POST where thread=THREAD.ID) as posts slug, title, user from THREAD where forum=%s"+newposts+limitimg+"order by date "+order,[forum])
+			response=dictfetchall(posts, related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 		
@@ -276,13 +264,12 @@ def forumlistusers(request):
 def postcreate(request):
 	
 	if request.method == "POST":
-		data=loads(request.body)
-		date=data.get("date")
-		thread=data.get("thread")
-		message=data.get("message")
-		user=data.get("user")
-		forum=data.get("forum")
-		parent=data.get("parent")
+		date=request.POST.get("date")
+		thread=request.POST.get("thread")
+		message=request.POST.get("message")
+		user=request.POST.get("user")
+		forum=request.POST.get("forum")
+		parent=request.POST.get("parent")
 		if parent is None:
 			parent="null"
 		isApproved=request.POST.get("isApproved")
@@ -305,7 +292,7 @@ def postcreate(request):
 			return HttpResponse(dumps(response))
 		else:
 			post=connection.cursor()
-			post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values("+str(date)+","+thread+", %s,%s,%s, "+parent+", "+str(isApproved)+", "+str(isHighlighted)+", "+str(isEdited)+", "+str(isSpam)+", "+str(isDeleted)+")", [message,user,forum])
+			post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values("+date+","+thread+", %s,%s,%s, "+parent+", "+isApproved+", "+isHighlighted+", "+isEdited+", "+isSpam+", "+isDeleted+")", [message,user,forum])
 			post.execute("select date, forum, ID as id, isApproved, isDeleted, isEdited, isHightlighted, isSpam,message,thread,user from POST where message like %s and user like %s and forum like %s and thread="+thread, [message,user, forum])
 			response=dectfecthone(post, None)
 			response1={"code":0, "response":response}
@@ -325,9 +312,9 @@ def postdetails(request):
 			response={"code":2,"response":"Invalid request, post_id required"}
 			return HttpResponse(dumps(response))
 		else:
-			posts=connection.cursor()
-			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT (likes-dislikes)) as points, thread, user from POST where ID= "+str(post))
-			response=dictfetchone(posts, related)
+			post=connection.cursor()
+			post.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
+			response=dictfetchone(post, related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
@@ -342,26 +329,26 @@ def postlist(request):
 		limit=request.GET.get("limit")
 		thread=request.GET.get("thread")
 		new_posts=""
-		if since is None:
-			since="0000-00-00 00:00:00"
+		if since is not None:
+			new_posts=" and date>="+date
 		if order is None:
 			order="desc"
 		limiting=""
 		if limit is not None:
 			limitimg=" LIMIT "+limit
 		if forum is not None:
-			posts=connection.cursor()
-			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where forum=%s and date>=%s"+limiting+"order by date "+order,[forum,since])
+			posts=connectiom.cursor()
+			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where forum=%s"+new_posts+limiting+"order by date "+order,[forum])
 			response=dictfetchall(posts,None)
 			response1={"code":0,"response":response}
-			return HttpResponse(dumps(response1))
+			return HttpResponcse(dump(response1))
 		else:
 			if thread is not None:
-				posts=connection.cursor()
-				posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=%s"+limiting+" order by date "+order,[since])
+				posts=connectiom.cursor()
+				posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+thread+new_posts+limiting+"order by date "+order)
 				response=dictfetchall(posts,None)
 				response1={"code":0,"response":response}
-				return HttpResponse(dumps(response1))
+				return HttpResponcse(dump(response1))
 			else:
 				response={"code":2,"response":"Invalid request, thread_id or forum name required"}
 				return HttpResponse(dumps(response))
@@ -379,7 +366,7 @@ def postremove(request):
 			return HttpResponse(dumps(response))
 		else:
 			delete=connection.cursor()
-			delete.execute("update POST set isDeleted=true where ID="+str(post))
+			delete.execute("update POST set isDeleted=true where ID="+post)
 			response={"code":0,"response":{"post", post}}
 			return HttpResponse(dumps(response))
         else: 
@@ -395,7 +382,7 @@ def postrestore(request):
 			return HttpResponse(dumps(response))
 		else:
 			delete=connection.cursor()
-			delete.execute("update POST set isDeleted=false where ID="+str(post))
+			delete.execute("update POST set isDeleted=false where ID="+post)
 			response={"code":0,"response":{"post", post}}
 			return HttpResponse(dumps(response))
         else: 
@@ -412,8 +399,8 @@ def postupdate(request):
 			return HttpResponse(dumps(response))
 		else:
 			update=connection.cursor()
-			update.execute("update POST set message=%s, isEdited=true where ID="+str(post),[message])
-			update.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+str(post))
+			update.execute("update POST set message=%s, isEdited=true where ID="+post,[message])
+			update.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
 			response=dictfetchone(update,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -432,27 +419,26 @@ def postvote(request):
 			return HttpResponse(dumps(response))
 		else:
 			vote=connection.cursor()
-			vote.execute("insert into VOTE1(object,mark) values("+str(post)+","+str(vote)+")")
-			vote.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+str(post))
+			vote.execute("insert into VOTE1(object,mark) values("+post+","+vote+")")
+			vote.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where ID="+post)
 			response=dictfetchone(vote,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
 		response={"code":3, "response":"error expected POST request"}
 		return HttpResponse(dumps(response))
-@csrf_exempt
+
 def usercreate(request):
 	
 	if request.method=="POST":
-		data=loads(request.body)
-		isAnonymous=str(data.get("isAnonymous"))
-		username=data.get("username")
-		about=data.get("about")
-		name=data.get("name")
-		email=data.get("email")
+		isAnonymous=request.POST.get("isAnonymous")
+		username=request.POST.get("username")
+		about=request.POST.get("about")
+		name=request.POST.get("name")
+		email=request.POST.get("email")
 		if isAnonymous is None:
-			isAnonymous="False"
-		if email is None:
+			isAnonymous=" false"
+		if (username is None) or (about is None) or (name is None) or (email is None):
 			response={"code":2,"response":"Invalid request, name, username, email and about required"}
 			return HttpResponse(dumps(response))
 		else:
@@ -463,20 +449,19 @@ def usercreate(request):
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
-        else:
-		 
+        else: 
 		response={"code":3, "response":"error expected POST request"}
 		return HttpResponse(dumps(response))
 
 def userdetails(request):
 	if request.method=="GET":
-		email=request.GET.get("user")
+		email=request.GET.get("email")
 		if email is None:
 			response={"code":2,"response":"Invalid email required"}
 			return HttpResponse(dumps(response))
 		else:
 			user=connection.cursor()
-			user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email like %s", [email])
+			user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [email])
 			response=dictfetchone(user,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -525,7 +510,8 @@ def userlistfollowers(request):
 			if since is not None:
 				news="and ID>="+since
 			followers=connection.cursor()
-			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email in (select follower from FOLLOWING where followee like %s"+news+")"+limiting+" order by name "+order, [user])
+			followers.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER")# where email in (select follower from FOLLOWING where followee like %s"+news+")"+limiting+" order by name "+order, [user])
+#			followers.execute("select about from USER")
 			response=dictfetchall(followers,"user")
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -566,7 +552,7 @@ def userlistfollowing(request):
 
 def userlistposts(request):
 
-        if request.method=="GET":
+        if request.methos=="GET":
 		user=request.GET.get("email")
 		if user is None:
 			response={"code":2,"response":"Invalid request, user required"}
@@ -644,7 +630,7 @@ def threadclose(request):
 			return HttpResponse(dumps(response))
 		else:
 			close=connection.cursor()
-			close.execute("update THREAD set isClosed=true where ID="+str(thread))
+			close.execute("update THREAD set isClosed=true where ID="+thread)
 			response={"code":0,"response":{"thread", thread}}
 			return HttpResponse(dumps(response))
         else: 
@@ -654,23 +640,22 @@ def threadclose(request):
 def threadcreate(request):
 	
 	if request.method=="POST":
-		data=loads(request.body)
-		isDeleted=data.get("isDeleted")
+		isDeleted=request.POST.get("isDeleted")
 		if isDeleted is None:
 			isDeleted="false"
-		forum=data.get("forum")
-		title=data.get("title")
-		isClosed=data.get("isClosed")
-		user=data.get("user")
-		date=data.get("date")
-		message=data.get("message")
-		slug=data.get("slug")
+		forum=request.POST.get("forum")
+		title=request.POST.get("title")
+		isClosed=request.POST.get("isClosed")
+		user=request.POST.get("user")
+		date=request.POST.get("date")
+		message=request.POST.get("message")
+		slug=request.POST.get("slug")
 		if (forum is None or title is None or isClosed is None or user is None or date is None or message is None or slug is None):
 			response={"code":2,"response":"Invalid request, fill all fields required"}
 			return HttpResponse(dumps(response))
 		else:
 			newthread=connection.cursor()
-			newthread.execute("insert into THREAD(forum, title, isClosed, user, date, message,slug, isDeleted) values(%s,%s,"+str(isClosed)+",%s,%s,%s,%s,"+str(isDeleted)+")",[forum,title,user,date,message,slug])
+			newthread.execute("insert into THREAD(forum, title, isClosed, user, date, message,slug, isDeleted) values(%s,%s,"+isClosed+",%s,"+date+",%s,%s,"+isDeleted+")",[forum,title,user,message,slug])
 			newthread.execute("select date,forum,ID as id,isClosed, isDeleted,message,slug,title,user from THREAD where forum like %s and title like %s and user like %s and message like %s",[forum,title,user,message])
 			response=dictfetchone(newthread,"user")
 			response1={"code":0,"response":response}
@@ -691,7 +676,7 @@ def threaddetails(request):
 			return HttpResponse(dumps(response))
 		else:
 			detail=connection.cursor()
-			detail.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
+			detail.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
 			response=dictfetchone(detail,related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -709,26 +694,26 @@ def threadlist(request):
 		limit=request.GET.get("limit")
 		user=request.GET.get("user")
 		new_posts=""
-		if since is None:
-			since="0000-00-00 00:00:00"
+		if since is not None:
+			new_posts=" and date>="+date
 		if order is None:
 			order="desc"
 		limiting=""
 		if limit is not None:
-			limitimg=" LIMIT "+str(limit)
+			limitimg=" LIMIT "+limit
 		if forum is not None:
-			threads=connection.cursor()
-			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where forum like %s and date>=%s"+new_posts+limiting+" order by date "+order,[forum,since])
+			threads=connectiom.cursor()
+			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where forum like %s"+new_posts+limiting+" order by date "+order,[forum])
 			response=dictfetchall(threads,None)
 			response1={"code":0,"response":response}
-			return HttpResponse(dumps(response1))
+			return HttpResponcse(dump(response1))
 		else:
 			if user is not None:
-				threads=connection.cursor()
-				threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where user like %s and date>=%s"+limiting+" order by date "+order,[user,since])
+				threads=connectiom.cursor()
+				threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID ad id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where user like %s"+new_posts+limiting+" order by date "+order,[user])
 				response=dictfetchall(threads,None)
 				response1={"code":0,"response":response}
-				return HttpResponse(dumps(response1))
+				return HttpResponcse(dump(response1))
 			else:
 				response={"code":2,"response":"Invalid request, thread_id or forum name required"}
 				return HttpResponse(dumps(response))
@@ -747,13 +732,13 @@ def threadlistposts(request):
 		thread=request.GET.get("thread")
 		sort=request.GET.get("sort")
 		new_posts=""
-		if since is None:
-			since="0000-00-00 00:00:00"
+		if since is not None:
+			new_posts=" and date>="+date
 		if order is None:
 			order="desc"
 		limiting=""
 		if limit is not None:
-			limitimg=" LIMIT "+str(limit)
+			limitimg=" LIMIT "+limit
 		if sort is None:
 			sort="flat"
 		if thread is None:
@@ -761,7 +746,7 @@ def threadlistposts(request):
 			return HttpResponse(dumps(response))
 		else:
 			posts=connection.cursor()
-			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=%s"+limiting+"order by date "+order,[since])
+			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+thread+news_posts+limiting+"order by date "+order)
 			response=dictfetchall(posts,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -779,7 +764,7 @@ def threadopen(request):
 			return HttpResponse(dumps(response))
 		else:
 			open1=connection.cursor()
-			open1.execute("update THREAD set isClosed=true where ID="+str(thread))
+			open1.execute("update THREAD set isClosed=true where ID="+thread)
 			response={"code":0,"response":{"thread", thread}}
 			return HttpResponse(dumps(response))
         else: 
@@ -795,8 +780,8 @@ def threadremove(request):
 			return HttpResponse(dumps(response))
 		else:
 			close=connection.cursor()
-			close.execute("update THREAD set isDeleted=true where ID="+str(thread))
-			close.execute("update POST set isDeleted=true where thread="+str(thread))
+			close.execute("update THREAD set isDeleted=true where ID="+thread)
+			close.execute("update POST set isDeleted=true where thread="+thread)
 			response={"code":0,"response":{"thread", thread}}
 			return HttpResponse(dumps(response))
         else: 
@@ -812,7 +797,7 @@ def threadrestore(request):
 			return HttpResponse(dumps(response))
 		else:
 			close=connection.cursor()
-			close.execute("update THREAD set isDeleted=false where ID="+str(thread))
+			close.execute("update THREAD set isDeleted=false where ID="+thread)
 			response={"code":0,"response":{"thread", thread}}
 			return HttpResponse(dumps(response))
         else: 
@@ -829,7 +814,7 @@ def threadsubscribe(request):
 			return HttpResponse(dumps(response))
 		else:
 			sudscribe=connection.cursor()
-			subscribe.execute("insert into SUBSCRIPTION(threadid,user) values("+str(thread)+",%s)",[user])
+			subscribe.execute("insert into SUBSCRIPTION(threadid,user) values("+thread+",%s)",[user])
 			response={"code":0,"response":{"thread": thread, "user": user}}
 			return HttpResponse(dumps(response))
         else: 
@@ -847,7 +832,7 @@ def threadunsubscribe(request):
 			return HttpResponse(dumps(response))
 		else:
 			sudscribe=connection.cursor()
-			subscribe.execute("delete from SUBSCRIPTION where thread="+str(thread)+" and user like %s)",[user])
+			subscribe.execute("delete from SUBSCRIPTION where thread="+thread+" and user like %s)",[user])
 			response={"code":0,"response":{"thread": thread, "user": user}}
 			return HttpResponse(dumps(response))
         else: 
