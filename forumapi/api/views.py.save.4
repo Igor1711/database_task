@@ -283,23 +283,21 @@ def postcreate(request):
 		user=data.get("user")
 		forum=data.get("forum")
 		parent=data.get("parent")
-		if parent is None:
-			parent="null"
 		isApproved=data.get("isApproved")
 		if isApproved is None:
-			isApproved="False"
+			isApproved="false"
 		isHighlighted=data.get("isHighlighted")
 		if isHighlighted is None:
-			isHighlighted="False"
+			isHighlighted="false"
 		isEdited=data.get("isEdited")
 		if isEdited is None:
-			isEdited="False"
+			isEdited="false"
 		isSpam=data.get("isSpam")
 		if isSpam is None:
-			isSpam="False"
+			isSpam="false"
 		isDeleted=data.get("isDeleted")
 		if isDeleted is None:
-			isDeleted="False"
+			isDeleted="false"
 		if date is None or thread is None or message is None or user is None or forum is None:
 			response={"code":2,"response":"Invalid request, forum, date, thread,message, user required"}
 			return HttpResponse(dumps(response))
@@ -307,9 +305,9 @@ def postcreate(request):
 			post=connection.cursor()
 			code=0
 			try:
-				post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values(%s,"+str(thread)+", %s,%s,%s, "+str(parent)+", "+str(isApproved)+", "+str(isHighlighted)+", "+str(isEdited)+", "+str(isSpam)+", "+str(isDeleted)+")", [date,message,user,forum])
-				post.execute("select date, forum, ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,message,thread,user from POST where message like %s and user like %s and forum like %s and thread="+str(thread), [message,user, forum])
-				response=dictfetchone(post, None)
+				post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values(%s,"+str(thread)+", %s, %s, %s, "+str(parent)+", "+str(isApproved)+", "+str(isHighlighted)+", "+str(isEdited)+", "+str(isSpam)+", "+str(isDeleted)+")", [date,message,user,forum])
+#				post.execute("select date, forum, ID as id, isApproved, isDeleted, isEdited, isHightlighted, isSpam,message,thread,user from POST where thread="+str(thread))#, [message,user, forum])
+				response="I hate Errors"#dictfecthone(post, None)"
 			except Exception:
 				code=3
 				response="Invalid data"
@@ -330,14 +328,9 @@ def postdetails(request):
 			return HttpResponse(dumps(response))
 		else:
 			posts=connection.cursor()
-			code=0
-			try:
-				posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT (likes-dislikes)) as points, thread, user from POST where ID= "+str(post))
-				response=dictfetchone(posts, related)
-			except Exception:
-				code=1
-				response="404 post not found"
-			response1={"code":code,"response":response}
+			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT (likes-dislikes)) as points, thread, user from POST where ID= "+str(post))
+			response=dictfetchone(posts, related)
+			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
         else: 
 		response={"code":3, "response":"error expected GET request"}
@@ -466,15 +459,10 @@ def usercreate(request):
 			return HttpResponse(dumps(response))
 		else:
 			newuser=connection.cursor()
-			code=0
-			try:
-				newuser.execute("insert into USER(username, name, about, email, isAnonymous) values(%s,%s,%s,%s,"+isAnonymous+")",[username,name,about,email])
-				newuser.execute("select about,email, ID as id, isAnonymous,name,username from USER where email=%s",[email])
-				response=dictfetchone(newuser,None)
-			except Exception:
-				code=5
-				response="such user already exists"
-			response1={"code":code,"response":response}
+			newuser.execute("insert into USER(username, name, about, email, isAnonymous) values(%s,%s,%s,%s,"+isAnonymous+")",[username,name,about,email])
+			newuser.execute("select about,email, ID as id, isAnonymous,name,username from USER where email=%s",[email])
+			response=dictfetchone(newuser,None)
+			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
         else:
@@ -490,14 +478,9 @@ def userdetails(request):
 			return HttpResponse(dumps(response))
 		else:
 			user=connection.cursor()
-			code=1
-			try
-				user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email like %s", [email])
-				response=dictfetchone(user,"user")
-			except Exception:
-				code=1
-				response="404 user not found"
-			response1={"code":code,"response":response}
+			user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email like %s", [email])
+			response=dictfetchone(user,"user")
+			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
 	else: 
@@ -710,14 +693,9 @@ def threaddetails(request):
 			return HttpResponse(dumps(response))
 		else:
 			detail=connection.cursor()
-			code=0
-			try:
-				detail.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
-				response=dictfetchone(detail,related)
-			except Exception:
-				code=1
-				response="404 thread not found"
-			response1={"code":code,"response":response}
+			detail.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where ID="+thread)
+			response=dictfetchone(detail,related)
+			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 
         else: 
