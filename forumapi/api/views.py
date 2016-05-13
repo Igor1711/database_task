@@ -5,8 +5,8 @@ from django.db import connection, transaction
 from django.core.serializers import serialize
 from json import dumps, loads, JSONEncoder
 from django.db.models.query import QuerySet
-import datetime
-
+import datetime			
+			
 def getobjectlist(cursor):
 	columns=[col[0] for col in cursor.description]
 	return [
@@ -26,7 +26,7 @@ def changedictuser(user):
 	user1["subscriptions"]=getobjectlist(follow)
 	return user1
 	
-def relateddict(dict1, relate):
+def relateddict(dict1, relate, type):
 	if relate is None:
 		return dict1
 	else: 
@@ -44,13 +44,16 @@ def relateddict(dict1, relate):
 			relation=connection.cursor()
 			if forum:
 				relation.execute("select ID as id, name,short_name,user from FORUM where short_name=%s",[dict1['forum']])
-				dict1['forum']=dictfetchone(relation,None)
+				dict1['forum']=dictfetchone(relation,related)
 			if user1:
 				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email=%s", [dict1['user']])
 				dict1['user']=dictfetchone(relation,"user")
 			if thread:
-				relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID and isDeleted=0) as posts, slug, title, user from THREAD where ID="+str(dict1['thread']))
-				dict1['thread']=dictfetchone(relation,None)
+				if type==1: 
+					return "error"
+				else:
+					relation.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID and isDeleted=0) as posts, slug, title, user from THREAD where ID="+str(dict1['thread']))
+					dict1['thread']=dictfetchone(relation,None)
 		return dict1
 	
 
@@ -115,7 +118,6 @@ def clear(request):
                         "code": 3,
                         "response":"error POST method required"
                 }
-
 		return HttpResponse(dumps(response))
 
 def status(request):
@@ -152,7 +154,7 @@ def forumcreate(request):
 			try:
 				new_forum.execute("insert into FORUM(name,short_name,user) values(%s,%s,%s)",[name,short_name,user])
 				new_forum.execute("select ID as id,name,short_name,user from FORUM where name like %s and short_name like %s and user like %s",[name,short_name,user])
-				response=dictfetchone(new_forum, None)
+				response=dictfetchone(new_forum, None,0)
 			except Exception:
 				response="Invalid data"
 				new_forum.execute("delete from FORUM where short_name=%s",[short_name])
@@ -175,7 +177,7 @@ def forumdetails(request):
 		code=0
 		details.execute('select ID as id, name, short_name, user from FORUM where short_name like %s group by short_name',[short_name])
 		try:
-			response=dictfetchone(details, related)
+			response=dictfetchone(details, None)
 		except Exception:
 			response="forum "+short_name+" does not exist"
 			code=1
@@ -325,6 +327,9 @@ def postdetails(request):
 	if request.method == "GET":
 		post=request.GET.get("post")
 		related=request.GET.get("related")
+		if related=="thread":
+			responce={"code":3,"response":"Invalid related"
+			return HttpResponse(dumps(response))
 		if post is None:
 			response={"code":2,"response":"Invalid request, post_id required"}
 			return HttpResponse(dumps(response))
@@ -368,7 +373,7 @@ def postlist(request):
 			if thread is not None:
 				posts=connection.cursor()
 				posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=%s"+limiting+" order by date "+order,[since])
-				response=dictfetchall(posts,None)
+				response=dictfetchall(posts,None,0)
 				response1={"code":0,"response":response}
 				return HttpResponse(dumps(response1))
 			else:
@@ -490,8 +495,8 @@ def userdetails(request):
 			return HttpResponse(dumps(response))
 		else:
 			user=connection.cursor()
-			code=1
-			try
+			code=0
+			try:
 				user.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email like %s", [email])
 				response=dictfetchone(user,"user")
 			except Exception:
@@ -625,7 +630,7 @@ def userunfollow(request):
 			follow=connection.cursor()
 			follow.execute("delete from FOLLOWING where follower like %s and followee like %s",[follower,followee])
 			follow.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER, where email like %s", [follower])
-			response=dictfetchone(follow,"user")
+			response=dictfetchone(follow,"user",0)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
@@ -691,7 +696,7 @@ def threadcreate(request):
 			newthread=connection.cursor()
 			newthread.execute("insert into THREAD(forum, title, isClosed, user, date, message,slug, isDeleted) values(%s,%s,"+str(isClosed)+",%s,%s,%s,%s,"+str(isDeleted)+")",[forum,title,user,date,message,slug])
 			newthread.execute("select date,forum,ID as id,isClosed, isDeleted,message,slug,title,user from THREAD where forum like %s and title like %s and user like %s and message like %s",[forum,title,user,message])
-			response=dictfetchone(newthread,"user")
+			response=dictfetchone(newthread,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 	
@@ -705,6 +710,10 @@ def threaddetails(request):
 	if request.method=="GET":
 		related=request.GET.get("related")
 		thread=request.GET.get("thread")
+		if validrelated(related,2)==0:
+                        response={"code":3,"response":"Invalid related"}
+                        return HttpResponse(dumps(response))
+
 		if thread is None:
 			response={"code":2,"response":"Invalid request, thread id required"}
 			return HttpResponse(dumps(response))
