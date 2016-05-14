@@ -44,7 +44,7 @@ def relateddict(dict1, relate):
 			relation=connection.cursor()
 			if forum:
 				relation.execute("select ID as id, name,short_name,user from FORUM where short_name=%s",[dict1['forum']])
-				dict1['forum']=dictfetchone(relation,related)
+				dict1['forum']=dictfetchone(relation,None)
 			if user1:
 				relation.execute("select about, email, email as following, email as followers, USER.ID as id, isAnonymous, name, email as subscriptions, username from USER where email=%s", [dict1['user']])
 				dict1['user']=dictfetchone(relation,"user")
@@ -91,6 +91,18 @@ def dictfetchone(cursor, change):
                                 for row in cursor.fetchall()
                         ]
         	return result[0]
+def tree_sort(cursor, limit, date, parent, level):
+	cursor.execute("select * from POST")
+	responce=dictftchall(cursor,none)
+	return response
+
+def parent_tree(cursor, limit, date, parent, level):
+	if level==0:
+		cursor.execute("select * from POST where thread="+str(parent)+" LIMIT "+str(limit))
+	#else:
+	#	cursor.execute(
+        responce=dictftchall(cursor,none)
+        return response 
 		
 @csrf_exempt
 def clear(request):
@@ -165,7 +177,7 @@ def forumcreate(request):
 def forumdetails(request):
 	if request.method == "GET":
 		short_name=request.GET.get("forum")
-		related=request.GET.get("related")
+		related=[request.GET.get("related")]
 		if short_name is None:
 			response={"code":2,"response":"Invalid request, forum name required"}
 			return HttpResponse(dumps(response))
@@ -191,6 +203,7 @@ def forumlistposts(request):
 		since=request.GET.get("since")
 		order=request.GET.get("order")
 		related=[request.GET.get("related")]
+		related=['forum','user','thread']
 		limit=request.GET.get("limit")
 		if forum is None:
 			response={"code":2,"response":"Invalid request, forum name required"}
@@ -202,10 +215,9 @@ def forumlistposts(request):
 			limiting=" "
 			if limit is not None:
 				limiting=" LIMIT "+str(limit)
-			since='2014-01-01 00:00:00'
 			if since is None:
-				since="0000-00-00 00:00:00"
-			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where forum=%s order by date "+order+limiting,[forum])
+				since='0000-00-00 00:00:00'
+			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where forum=%s and date>=date(cast(%s as datetime)) order by date "+order+limiting,[forum,since])
 			response=dictfetchall(posts, related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -221,6 +233,7 @@ def forumlistthreads(request):
 		since=request.GET.get("since")
 		order=request.GET.get("order")
 		related=[request.GET.get("related")]
+		related=['forum','user']
 		limit=request.GET.get("limit")
 		if forum is None:
 			response={"code":2,"response":"Invalid request, forum name required"}
@@ -235,7 +248,7 @@ def forumlistthreads(request):
 			new_threads=""
 			if since is None:
 				since="0000-00-00 00:00:00"
-			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message,(select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID and isDeleted=0) as posts, slug, title, user from THREAD where forum=%s order by date "+order+limiting,[forum])
+			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message,(select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID and isDeleted=0) as posts, slug, title, user from THREAD where forum=%s and date>=cast(%s as datetime) order by date "+order+limiting,[forum, since])
 			response=dictfetchall(threads, related)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
@@ -346,29 +359,28 @@ def postdetails(request):
 def postlist(request):
 	if request.method == "GET":
 		forum=request.GET.get("forum")
-		since=request.GET.get("since_id")
+		since=request.GET.get("since")
 		order=request.GET.get("order")
 		limit=request.GET.get("limit")
 		thread=request.GET.get("thread")
-		new_posts=""
 		if since is None:
 			since="0000-00-00 00:00:00"
 		if order is None:
 			order="desc"
 		limiting=""
 		if limit is not None:
-			limitimg=" LIMIT "+limit
+			limiting=" LIMIT "+str(limit)
 		if forum is not None:
 			posts=connection.cursor()
-			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where forum=%s and date>=%s"+limiting+"order by date "+order,[forum,since])
+			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where forum=%s and date>=cast(%s as datetime) order by date "+order+limiting,[forum,since])
 			response=dictfetchall(posts,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 		else:
 			if thread is not None:
 				posts=connection.cursor()
-				posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=%s"+limiting+" order by date "+order,[since])
-				response=dictfetchall(posts,None,0)
+				posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=cast(%s as datetime) order by date "+order+limiting,[since])
+				response=dictfetchall(posts,None)
 				response1={"code":0,"response":response}
 				return HttpResponse(dumps(response1))
 			else:
@@ -741,11 +753,10 @@ def threadlist(request):
 
 	if request.method=="GET":
 		forum=request.GET.get("forum")
-		since=request.GET.get("since_id")
+		since=request.GET.get("since")
 		order=request.GET.get("order")
 		limit=request.GET.get("limit")
 		user=request.GET.get("user")
-		new_posts=""
 		if since is None:
 			since="0000-00-00 00:00:00"
 		if order is None:
@@ -755,14 +766,14 @@ def threadlist(request):
 			limiting=" LIMIT "+str(limit)
 		if forum is not None:
 			threads=connection.cursor()
-			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where forum like %s and date>=%s"+new_posts+limiting+" order by date "+order,[forum,since])
+			threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where forum like %s and date>=cast(%s as datetime) order by date "+order+ limiting,[forum,since])
 			response=dictfetchall(threads,None)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 		else:
 			if user is not None:
 				threads=connection.cursor()
-				threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where user like %s and date>=%s"+limiting+" order by date "+order,[user,since])
+				threads.execute("select date, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=-1) as dislikes, forum, ID as id, isClosed, isDeleted, (select count(*) from VOTE where VOTE.object=THREAD.ID and mark=1) as likes, message, (select(likes-dislikes)) as points, (select count(*) from POST where thread=THREAD.ID) as posts, slug, title, user from THREAD where user like %s and date>=cast(%s as datetime) order by date "+order+limiting,[user,since])
 				response=dictfetchall(threads,None)
 				response1={"code":0,"response":response}
 				return HttpResponse(dumps(response1))
@@ -778,28 +789,33 @@ def threadlistposts(request):
 
         if request.method=="GET":
 		
-		since=request.GET.get("since_id")
+		since=request.GET.get("since")
 		order=request.GET.get("order")
 		limit=request.GET.get("limit")
 		thread=request.GET.get("thread")
 		sort=request.GET.get("sort")
-		new_posts=""
 		if since is None:
 			since="0000-00-00 00:00:00"
 		if order is None:
 			order="desc"
-		limiting=""
-		if limit is not None:
-			limiting=" LIMIT "+str(limit)
 		if sort is None:
 			sort="flat"
+		limiting=""
+                if limit is not None:
+                        limiting=" LIMIT "+str(limit)
 		if thread is None:
 			response={"code":2,"response":"Invalid request, thread_id required"}
 			return HttpResponse(dumps(response))
 		else:
 			posts=connection.cursor()
-			posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+limiting+" order by date "+order)
-			response=dictfetchall(posts,None)
+			if sort=="flat":
+				posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=cast(%s as datetime) order by date "+order+limiting, [since])
+				response=dictfetchall(posts,None)
+			else:
+				if sort=="tree":
+					response=tree_sort(posts, limit, since, thread,0)
+				else:
+					response=parent_tree(posts,limit,since, thread,0)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
