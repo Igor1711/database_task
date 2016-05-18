@@ -102,10 +102,11 @@ def create_path(id, parent):
 		
 		return create_path(parent, num)+"."+str(id)		
 
-def tree_sort(cursor, limit, date, parent, level):
-	cursor.execute("select * from POST")
-	responce=dictftchall(cursor,none)
-	return response
+#def tree_sort(cursor, limit, date, parent, level):
+#	cursor.execute("select * from POST")
+#	posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=cast(%s as datetime) order by date "+order+limiting, [since])
+#	responce=dictfetchall(cursor,none)
+#	return response
 
 def parent_tree(cursor, limit, date, parent, level):
 	if level==0:
@@ -825,7 +826,8 @@ def threadlistposts(request):
 				response=dictfetchall(posts,None)
 			else:
 				if sort=="tree":
-					response=tree_sort(posts, limit, since, thread,0)
+					posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=cast(%s as datetime) order by path "+order+limiting, [since])
+					response=dictfetchall(posts,None)
 				else:
 					response=parent_tree(posts,limit,since, thread,0)
 			response1={"code":0,"response":response}
