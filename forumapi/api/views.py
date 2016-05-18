@@ -1,3 +1,4 @@
+#encoding:utf-8
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render
 from django.http import HttpResponse, HttpResponseRedirect
@@ -91,6 +92,16 @@ def dictfetchone(cursor, change):
                                 for row in cursor.fetchall()
                         ]
         	return result[0]
+def create_path(id, parent):
+	if parent is None or parent=="null":
+		return str(id)
+	else:
+		level=connection.cursor()
+		level.execute("select parent from POST where id="+str(parent))
+		num=dumps(level.fetchone()[0])
+		
+		return create_path(parent, num)+"."+str(id)		
+
 def tree_sort(cursor, limit, date, parent, level):
 	cursor.execute("select * from POST")
 	responce=dictftchall(cursor,none)
@@ -322,6 +333,7 @@ def postcreate(request):
 				post.execute("insert into POST(date, thread, message, user, forum, parent, isApproved, isHighlighted, isEdited, isSpam, isDeleted) values(%s,"+str(thread)+", %s,%s,%s, "+str(parent)+", "+str(isApproved)+", "+str(isHighlighted)+", "+str(isEdited)+", "+str(isSpam)+", "+str(isDeleted)+")", [date,message,user,forum])
 				post.execute("select date, forum, ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,message,thread,user from POST where message like %s and user like %s and forum like %s and thread="+str(thread), [message,user, forum])
 				response=dictfetchone(post, None)
+				post.execute("update POST set path=%s where ID="+str(response["id"]),[create_path(response["id"],parent)])
 			except Exception:
 				code=3
 				response="Invalid data"
