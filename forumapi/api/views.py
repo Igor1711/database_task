@@ -847,10 +847,9 @@ def threadlistposts(request):
 				response=dictfetchall(posts,None)
 			else:
 				if sort=="tree":
-					posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=cast(%s as datetime) order by path "+order+limiting, [since])
-					response=dictfetchall(posts,None)
+					response=tree(posts,limit,sinse,order)
 				else:
-					response=parent_tree(posts,limit,since, thread,0)
+					response=parent_tree(posts,limit,sinse,order)
 			response1={"code":0,"response":response}
 			return HttpResponse(dumps(response1))
 			
