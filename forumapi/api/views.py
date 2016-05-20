@@ -100,21 +100,42 @@ def create_path(id, parent):
 		level.execute("select parent from POST where id="+str(parent))
 		num=dumps(level.fetchone()[0])
 		
-		return create_path(parent, num)+"."+str(id)		
+		return create_path(parent, num)+"."+str(id)
+		
+def tree(cursor, limit, date, order):
+	if order is None:
+		order="desc"
+	cursor.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=cast(%s as datetime) and parent is null order by date "+order, [date])
+	result=dictfetchall(cursor,none)
+	relating=new array[]
+	for post in result:
+		relating append(post)
+		path=str(post.get("parent"))+"%"
+		cursor.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=cast(%s as datetime) and path like %s order by path", [date, path])
+		answers=dictfetchall(cursor,none)
+		relating=relating+answers
+	if limit is None:
+		return relating
+	else:
+		return relating[:limit]
 
-#def tree_sort(cursor, limit, date, parent, level):
-#	cursor.execute("select * from POST")
-#	posts.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=cast(%s as datetime) order by date "+order+limiting, [since])
-#	responce=dictfetchall(cursor,none)
-#	return response
 
-def parent_tree(cursor, limit, date, parent, level):
-	if level==0:
-		cursor.execute("select * from POST where thread="+str(parent)+" LIMIT "+str(limit))
-	#else:
-	#	cursor.execute(
-        responce=dictftchall(cursor,none)
-        return response 
+def parent_tree(cursor, limit, date, order):
+	limiting=""
+	if limit is not None:
+		limiting =" LIMIT "+str(limit)
+	if order is None:
+		order="desc"
+	cursor.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and date>=cast(%s as datetime) and parent is null order by date "+order+limiting, [date])
+	result=dictfetchall(cursor,none)
+	relating=new array[]
+	for post in result:
+		relating append(post)
+		path=str(post.get("parent"))+"%"
+		cursor.execute("select date, (select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=-1) as dislikes, forum,ID as id, isApproved, isDeleted, isEdited, isHighlighted, isSpam,(select count(*) from VOTE1 where VOTE1.object=POST.ID and mark=1) as likes, message, parent, (SELECT likes-dislikes) as points, thread, user from POST where thread="+str(thread)+" and path like %s order by path", [path])
+		answers=dictfetchall(cursor,none)
+		relating=relating+answers
+	return relating 
 		
 @csrf_exempt
 def clear(request):
